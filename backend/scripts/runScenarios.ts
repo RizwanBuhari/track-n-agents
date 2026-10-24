@@ -4,7 +4,7 @@
 // reminder timers and human closure. Run on a FRESH demo state with all
 // demo shipments loaded and the backend running:
 //   npx tsx scripts/resetDemo.ts --shipments   (backend stopped)
-//   npm run dev  &&  npx tsx scripts/loadDemoShipments.ts --all
+//   npm run dev  &&  npx tsx scripts/loadDemoShipments.ts --all --no-investigate
 //   npm run scenarios
 // Writes eval/scenario-results.md.
 

@@ -191,7 +191,7 @@ then prints one query joining Postgres, MySQL and the customs REST API.
 ### 5. Load the demo shipments and check the engine
 
 ```bash
-npm run load:demo           # extracts the demo AWBs (CASE-001 is left for a live upload; add -- --all for all)
+npm run load:demo           # extracts the demo AWBs and starts the investigations (CASE-001 is left for a live upload; add -- --all for all)
 npm run conformance         # Meterless World Model conformance: expect 8/8
 npm run doctor              # checks every prerequisite and prints the fix for anything missing
 ```
@@ -214,7 +214,7 @@ npm run scenarios           # end-to-end behaviour -> eval/scenario-results.md
 ```
 
 Both need a fresh demo state: stop the backend, `npm run reset -- --shipments`,
-start it again, `npm run load:demo -- --all`.
+start it again, `npm run load:demo -- --all --no-investigate` (the tests start the investigations themselves).
 
 ---
 

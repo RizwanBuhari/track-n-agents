@@ -38,7 +38,7 @@ cd backend
 npm install
 npm run dev                        # backend on http://localhost:4100
 npm run setup:zetaris              # in a second terminal, once
-npm run load:demo -- --all
+npm run load:demo -- --all        # needs the backend running: also starts the investigations
 npm run conformance                # expect 8/8
 
 cd ../dashboard

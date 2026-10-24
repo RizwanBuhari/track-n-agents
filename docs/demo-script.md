@@ -6,13 +6,12 @@ Prepare a fresh state first (backend stopped):
 cd backend
 npm run reset -- --shipments
 npm run dev                         # keep running
-npm run load:demo                   # loads CASE-002..008; CASE-001 is uploaded live
+npm run load:demo                   # loads CASE-002..008 and starts their investigations; CASE-001 is uploaded live
 cd ../dashboard && npm run dev
 ```
 
-Have `demo-data/cases/CASE-001/CASE-001_AWB.pdf` ready to drag in. Run the other
-investigations before recording (Shipments → each AWB → *Re-investigate*), so the
-Overview already shows open cases.
+Have `demo-data/cases/CASE-001/CASE-001_AWB.pdf` ready to drag in. Wait a few minutes
+after `load:demo` so the Overview already shows the other open cases.
 
 | Time | Screen | Say / do |
 |---|---|---|

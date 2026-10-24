@@ -5,7 +5,7 @@
 //      the clean shipment)
 //   3. First request recipient (procedure via Zetaris) vs the answer sheet
 // Writes eval/results.md. Run it on a FRESH demo state (scripts/resetDemo.ts, then
-// scripts/loadDemoShipments.ts --all): once cases are resolved in the simulated world
+// scripts/loadDemoShipments.ts --all --no-investigate): once cases are resolved in the simulated world
 // the shipments are no longer broken, and "no problem" becomes the right answer.
 
 import fs from "node:fs";
