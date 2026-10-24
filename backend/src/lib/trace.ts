@@ -45,6 +45,13 @@ const runsFile = path.join(config.dataDir, "runs.json");
 fs.mkdirSync(tracesDir, { recursive: true });
 
 const runs: RunInfo[] = fs.existsSync(runsFile) ? JSON.parse(fs.readFileSync(runsFile, "utf-8")) : [];
+// A run still "running" at startup was cut off by a restart: record that instead of leaving it hanging.
+for (const r of runs) {
+  if (r.status === "running") {
+    r.status = "failed";
+    r.pauseReason = "Interrupted by a backend restart";
+  }
+}
 const listeners = new Set<(step: TraceStep) => void>();
 
 function saveRuns() {
