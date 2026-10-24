@@ -41,6 +41,7 @@ export async function draftFromPlan(caseId: string, plan: Plan, recipient: { rol
         `Ask: ${plan.ask}`,
         `Proof needed to close: ${plan.proofNeeded.join("; ")}`,
         plan.revisedBecause ? `This follows up because: ${plan.revisedBecause}` : "",
+        c.problemType === "HS_CODE_ERROR" ? "Do not write any HS code. The customs broker reviews and decides the classification; we only collect the product information." : "",
         `Use this subject exactly: ${subject}`,
       ].filter(Boolean).join("\n"),
       maxTokens: 600,
@@ -50,6 +51,8 @@ export async function draftFromPlan(caseId: string, plan: Plan, recipient: { rol
         if (!digitsOnly(v.body).includes(digitsOnly(c.awbNo))) return `the body must mention AWB ${c.awbNo}`;
         if (/\[[A-Z][a-z]+\]|\{\{|<name>/i.test(v.body)) return "no placeholders";
         if (/\b(AI|agent|language model|Nemotron)\b/.test(v.body)) return "do not mention internal systems";
+        const withoutAwbs = v.body.replace(/\b\d{3}[- ]?\d{4} ?\d{4}\b/g, "");
+        if (c.problemType === "HS_CODE_ERROR" && /\b\d{6,10}\b/.test(withoutAwbs)) return "write no HS codes at all; say the invoice code does not match the goods and that the broker reviews the classification";
         return null;
       },
     });
@@ -57,7 +60,7 @@ export async function draftFromPlan(caseId: string, plan: Plan, recipient: { rol
   } catch (err) {
     if (!(err instanceof LlmError)) throw err;
     body = `Hello,\n\n${plan.ask}\n\nThis concerns AWB ${c.awbNo}. To close this we need: ${plan.proofNeeded.join("; ")}.\n\nThank you,\nTrack-N Operations`;
-    record("decision", "Model unavailable; drafted from the plan template");
+    record("decision", `No valid model draft (${(err as Error).message.slice(0, 100)}); drafted from the plan template`);
   }
   const draft = await saveDraft(caseId, {
     purpose,

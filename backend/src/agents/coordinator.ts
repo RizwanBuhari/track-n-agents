@@ -153,7 +153,7 @@ export function rejectDraft(draftId: string, user: DemoUser, note: string) {
         await updateDraft(draftId, { status: "rejected", decidedBy: user.name, decidedAt: clock.now().toISOString() }, `user:${user.id}`);
         record("decision", `${user.name} rejected ${draftId}: ${note || "no reason given"}`);
         if (draft.purpose === "reminder" || draft.purpose === "escalation") return;
-        await planNext(draft.caseId, { reason: "sent_back", detail: `A person rejected the previous draft${note ? `: ${note}` : ""}` });
+        await planNext(draft.caseId, { reason: "person_feedback", detail: `A person rejected the previous draft${note ? ` and said: "${note}"` : ""}. Follow their instruction.` });
       }),
     ),
   );
@@ -181,22 +181,27 @@ export async function receiveEmail(mail: MailRow): Promise<unknown> {
           await linkEmail(caseId, { messageId: `${mail.message_id}`, direction: "inbound", from: mail.from_addr, subject: mail.subject, sentAt: mail.sent_at, classification: "DUPLICATE", meaning: reading.meaning, duplicateOf: reading.duplicateOf }, "communication");
           return;
         }
-        await linkEmail(caseId, { messageId: mail.message_id, direction: "inbound", from: mail.from_addr, subject: mail.subject, sentAt: mail.sent_at, classification: reading.replyType, meaning: reading.meaning }, "communication");
-        for (const flag of reading.flags) await addFlag(caseId, flag, "communication");
-        if (reading.replyType === "UNVERIFIED_SENDER") return;
-        await addEvidence(caseId, { source: "trackn_ops.mailbox", recordId: mail.message_id, claim: `${mail.from_addr}: ${reading.meaning}`, kind: "reply", addedBy: "communication" });
-
         // Attachments from another shipment are rejected before anything else.
-        for (const att of reading.attachments) {
-          const check = await asAgent("verification", () => attachmentBelongs(caseId, att));
-          if (!check.belongs) reading.replyType = "WRONG_DOCUMENT";
-          if (!check.belongs) {
+        const wrong: string[] = [];
+        if (reading.replyType !== "UNVERIFIED_SENDER") {
+          for (const att of reading.attachments) {
+            const check = await asAgent("verification", () => attachmentBelongs(caseId, att));
+            if (check.belongs) continue;
+            wrong.push(check.detail);
             record("decision", `Wrong document: ${check.detail}`);
             await ops.query("UPDATE documents SET status = 'set_aside' WHERE file_name = $1", [att]);
             await finance.query("UPDATE invoices SET status = 'set_aside' WHERE file_name = ?", [att]);
             await addFlag(caseId, `Misdirected document set aside: ${check.detail}`, "verification");
           }
+          if (wrong.length) {
+            reading.replyType = "WRONG_DOCUMENT";
+            reading.meaning = `Wrong document: ${wrong.join("; ")}.`;
+          }
         }
+        await linkEmail(caseId, { messageId: mail.message_id, direction: "inbound", from: mail.from_addr, subject: mail.subject, sentAt: mail.sent_at, classification: reading.replyType, meaning: reading.meaning }, "communication");
+        for (const flag of reading.flags) await addFlag(caseId, flag, "communication");
+        if (reading.replyType === "UNVERIFIED_SENDER") return;
+        await addEvidence(caseId, { source: "trackn_ops.mailbox", recordId: mail.message_id, claim: `${mail.from_addr}: ${reading.meaning}`, kind: "reply", addedBy: "communication" });
 
         const c = caseFacts(caseId)!;
         await setStatus(caseId, "VERIFYING", "coordinator");
@@ -205,7 +210,7 @@ export async function receiveEmail(mail: MailRow): Promise<unknown> {
             const n = c.wrongDocs + 1;
             await setFacts(caseId, { wrongDocs: n }, "coordinator");
             if (n >= config.limits.wrongDocuments) return escalate(caseId, `${n} wrong documents received (limit ${config.limits.wrongDocuments}).`);
-            await planNext(caseId, { reason: "wrong_document", detail: `The attachment from ${mail.from_addr} belongs to another shipment.`, fromRole: reading.senderRole ?? undefined });
+            await planNext(caseId, { reason: "wrong_document", detail: `${reading.meaning} Reply to the sender and name the exact mistake.`, fromRole: reading.senderRole ?? undefined });
             return;
           }
           case "VAGUE":

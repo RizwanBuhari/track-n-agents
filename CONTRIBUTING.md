@@ -38,8 +38,12 @@ cd backend
 npm install
 npm run dev                        # backend on http://localhost:4100
 npm run setup:zetaris              # in a second terminal, once
-npx tsx scripts/loadDemoShipments.ts
+npm run load:demo -- --all
 npm run conformance                # expect 8/8
+
+cd ../dashboard
+npm install
+npm run dev                        # http://localhost:5173
 ```
 
 Quick health check: `GET http://localhost:4100/api/integrations` should show
@@ -52,18 +56,22 @@ To start over:
 
 ```bash
 # stop the backend first
-rm -rf backend/data
-cd infra && docker compose down -v && docker compose up -d && cd ..
-# start the backend, then: npm run setup:zetaris (prints "exists" for already-registered sources)
-npx tsx backend/scripts/loadDemoShipments.ts
+cd backend
+npm run reset -- --shipments       # clears cases, traces, simulated systems and demo rows
+npm run dev                        # start it again
+npm run load:demo -- --all
 ```
+
+To wipe the databases completely instead: `cd infra && docker compose down -v && docker compose up -d`,
+then `npm run setup:zetaris` again (it prints "exists" for sources already registered).
 
 ## 4. How we work
 
 - **Never commit to `main` directly.** Create a branch per change:
   `git checkout -b feature/dashboard-cases-page` (or `fix/...`, `docs/...`).
 - Keep commits small, with messages in the imperative: *"Add case timeline panel"*.
-- Before pushing: `cd backend && npm run typecheck` must pass.
+- Before pushing: `cd backend && npm run typecheck` and `cd dashboard && npm run build` must pass.
+- If you change agent behaviour, run `npm run scenarios` on a fresh state and commit the updated `eval/scenario-results.md`.
 - Push and open a pull request: `git push -u origin <branch>` then
   `gh pr create --fill`. Another teammate reviews and merges.
 - Pull often: `git checkout main && git pull`, then `git rebase main` on your branch.
@@ -95,4 +103,6 @@ npx tsx backend/scripts/loadDemoShipments.ts
 | Change email wording rules | `backend/src/agents/communication.ts` |
 | Add a scripted reply for the demo | `backend/src/sim/scenarios.ts` |
 | Add an API endpoint | `backend/src/routes/api.ts` |
+| Change a dashboard page | `dashboard/src/pages/` (styles in `dashboard/src/index.css` and `app.css`) |
+| Replace the logo | `dashboard/src/components/Logo.jsx`, `dashboard/public/favicon.svg` |
 | Add a demo shipment | `demo-data/cases/`, `infra/ops-db/02_seed.sql`, `infra/finance-db/01_schema_seed.sql`, `backend/src/sim/seed.ts` |

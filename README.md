@@ -15,9 +15,6 @@ agents find the problem, plan the fix, handle the emails and **verify** the
 outcome against the systems of record, and keeps a person in control of every
 email sent and every case closed.
 
-> **Status:** the backend (agents, integrations, simulator, API) is working
-> end to end. The dashboard is in progress. See [Roadmap](#roadmap).
-
 ---
 
 ## How it works
@@ -46,19 +43,28 @@ Upload AWB ─► extract fields ─► person confirms ─► shipment saved
                                    │ pass: person approves closure
 ```
 
+**Example (CASE-001, missing invoice).** Investigation joins the confirmed AWB
+(Postgres), finance (MySQL), carrier tracking and the customs portal (REST) and
+finds the customs hold for a missing invoice. The shipper replies *"Invoice sent"*:
+Verification rejects closing because no invoice is on file and customs still shows
+HELD, and Planning re-targets the follow-up to the broker. The broker then claims a
+release reference that is **not** in the customs record: rejected again. Only when
+the invoice is on file and customs shows the cited release, dated after our
+request, does the case become *Ready to close*, and a person closes it.
+
 ### The four agents
 
 | Agent | What it does | Model |
 |---|---|---|
 | **Investigation** | Queries all sources for one shipment through Zetaris, screens them with explicit rules, then decides the problem type and explains it, **citing every claim** to a source record. Uncited or invented conclusions are rejected and corrected. May request one extra read-only SQL lookup. | Nemotron Ultra 550B |
-| **Resolution Planning** | Reads the operating procedure and the shipment's parties (through Zetaris), the case history and any failed checks, and chooses the next action, recipient and the proof that will close the case. Revises the plan when Verification sends a case back. | Nemotron Lightning 30B |
+| **Resolution Planning** | Reads the operating procedure and the shipment's parties (through Zetaris), the case history and any failed checks, and chooses the next action, recipient and the proof that will close the case. Revises the plan when Verification sends a case back or a person rejects a draft. | Nemotron Lightning 30B |
 | **Communication** | Drafts emails for approval; reads replies. Duplicate, unknown-sender and hidden-instruction checks are deterministic; the reply's meaning is classified into the operating rules' reply types. | Nemotron Lightning 30B |
-| **Verification** | Challenges new findings before anyone is contacted, and checks claimed resolutions against the **records themselves**: customs release (dated after our request, cited reference must exist), corrected invoice version, certificate, weight record, tracking. A Nemotron critic then looks for reasons *not* to close; it can block a closure but can never turn a failed check into a pass. | Rules + Nemotron Ultra 550B |
+| **Verification** | Challenges new findings before anyone is contacted, and checks claimed resolutions against the **records themselves**: customs release (dated after our request, cited reference must exist), corrected invoice version, certificate, weight record, signed receipt, tracking. A Nemotron critic then looks for reasons *not* to close; it can block a closure but can never turn a failed check into a pass. | Rules + Nemotron Ultra 550B |
 
 A **coordinator** (plain code, not an agent) routes events, enforces the
 limits (2 reminders, 2 wrong documents, 3 send-backs, 25 steps per run),
 runs the reminder/escalation timers on a demo clock, and holds the human
-gates.
+gates: no email is sent and no case is closed without a person.
 
 ### The seven problem types
 
@@ -74,7 +80,23 @@ Conflicting status · Wrong HS code · Weight mismatch · Missing certificate.
 | **Zetaris** | One SQL access point to four separate sources: Postgres (shipments, documents, mailbox, parties, procedures), MySQL (invoices), and two REST APIs registered as tables (carrier tracking, customs broker portal). Every agent read goes through Zetaris, including cross-source joins. | `backend/src/lib/zetaris.ts`, `backend/src/agents/sources.ts`, `backend/scripts/setupZetaris.ts` |
 | **Meterless World Model engine** | The shared case state all four agents read and write: cases, evidence, plans, drafts, emails and verification results as entities, facts and bitemporal relationships. The event log is the case history; the audit log is the activity feed. Passes the official conformance suite (8/8). | `backend/src/engines/world-model/` (vendored engine), `backend/src/state/caseState.ts` (adapter), `npm run conformance` |
 | **Meterless Nightshift** | The primary (and only) AI provider. OpenAI-compatible Runtime contract with `meterless-app` / `meterless-scope` headers. | `backend/src/lib/llm.ts` |
-| **NVIDIA Nemotron** | Every agent request is served by a pinned Nemotron lane through Nightshift: Ultra 550B for investigation and the verification critic, Lightning 30B for planning, drafting, reply reading, extraction and chat. The served model is recorded in every trace step. | `backend/src/config.ts`, `data/traces/*.jsonl` |
+| **NVIDIA Nemotron** | Every agent request is served by a pinned Nemotron lane through Nightshift: Ultra 550B for investigation and the verification critic, Lightning 30B for planning, drafting, reply reading, extraction and chat. The served model is recorded in every trace step. | `backend/src/config.ts`, `backend/data/traces/*.jsonl` |
+
+More detail: [docs/sponsor-technology.md](docs/sponsor-technology.md).
+
+---
+
+## Results
+
+Measured on the fictional demo pack (8 shipments, 7 problem types + 1 clean),
+against an answer sheet the agents never read:
+
+- [eval/results.md](eval/results.md): AWB extraction field accuracy, problem
+  type per shipment, false alarms, first recipient.
+- [eval/scenario-results.md](eval/scenario-results.md): end-to-end behaviour for
+  every problem type and trap (partial replies, premature release claim, wrong
+  document, duplicate, unknown sender, hidden instructions, reminder timer,
+  two-stage closing, human closure).
 
 ---
 
@@ -93,10 +115,13 @@ track-n/
 │   │   ├── lib/             Zetaris client, Meterless client, traces, demo clock, refs
 │   │   ├── routes/          REST API and server-sent events
 │   │   └── server.ts
-│   └── scripts/             setupZetaris, loadDemoShipments, conformance
+│   └── scripts/             setupZetaris, loadDemoShipments, resetDemo, conformance,
+│                            evaluate, runScenarios
+├── dashboard/               React + Vite
 ├── infra/                   docker compose for the Postgres and MySQL sources + seed SQL
 ├── demo-data/cases/         8 fictional demo shipments (AWB, invoice, packing list, ...)
-├── eval/answer_sheet/       expected answers; never read by the agents
+├── eval/                    answer sheet (never read by agents) and results
+├── docs/                    sponsor technology, demo script
 └── .env.example
 ```
 
@@ -132,7 +157,7 @@ cd ..
 The databases join Docker network `zetaris_default` so Zetaris can reach them by
 container name. Start Zetaris first.
 
-### 3. Install and run the backend
+### 3. Run the backend
 
 ```bash
 cd backend
@@ -146,38 +171,51 @@ npm run dev                 # http://localhost:4100
 npm run setup:zetaris
 ```
 
-This registers `trackn_ops`, `trackn_finance`, `trackn_carrier` and
-`trackn_customs`, then prints one query joining Postgres, MySQL and the customs
-REST API as a check.
+Registers `trackn_ops`, `trackn_finance`, `trackn_carrier` and `trackn_customs`,
+then prints one query joining Postgres, MySQL and the customs REST API.
 
 ### 5. Load the demo shipments and check the engine
 
 ```bash
-npx tsx scripts/loadDemoShipments.ts   # extracts the demo AWBs (CASE-001 is left for the live upload)
-npm run conformance                    # Meterless World Model conformance: expect 8/8
+npm run load:demo           # extracts the demo AWBs (CASE-001 is left for a live upload; add -- --all for all)
+npm run conformance         # Meterless World Model conformance: expect 8/8
 ```
+
+### 6. Run the dashboard
+
+```bash
+cd ../dashboard
+npm install
+npm run dev                 # http://localhost:5173 (proxies /api to the backend)
+```
+
+### Tests and evaluation
+
+```bash
+cd backend
+npm run typecheck
+npm run eval                # extraction + investigation vs the answer sheet -> eval/results.md
+npm run scenarios           # end-to-end behaviour -> eval/scenario-results.md
+```
+
+Both need a fresh demo state: stop the backend, `npm run reset -- --shipments`,
+start it again, `npm run load:demo -- --all`.
 
 ---
 
-## Using the API
+## Dashboard
 
-| Method & path | What it does |
+| Page | What it is for |
 |---|---|
-| `POST /api/awb/extract` (multipart `file`) | Extract AWB fields from a PDF |
-| `POST /api/awb/confirm` | Save the confirmed shipment; starts an investigation |
-| `GET /api/cases`, `GET /api/cases/:id` | Cases, with evidence, plans, emails, checks, activity and runs |
-| `GET /api/approvals` | Drafts waiting for approval and cases ready to close |
-| `POST /api/drafts/:id/approve` / `reject` | Human gate for every outgoing email |
-| `POST /api/cases/:id/close` | Human gate for closure (manager if escalated) |
-| `POST /api/sim/cases/:id/deliver` | Deliver a scripted (simulated) reply |
-| `POST /api/sim/clock/advance` | Advance the demo clock to trigger reminders/escalation |
-| `POST /api/chat` | Read-only assistant over case evidence |
-| `GET /api/runs/:id` | Full trace of one agent run |
-| `GET /api/events` | Live agent steps (server-sent events) |
-| `GET /api/integrations` | Zetaris sources, Nightshift models, World Model stats |
+| **Overview** | Open cases, what is waiting for a person, live agent activity |
+| **Shipments** / detail | Confirmed AWB fields, related records from every source (with their source), carrier timeline, original PDF |
+| **Upload AWB** | Drop a PDF, check the extracted fields beside the document (flagged fields highlighted), confirm |
+| **Cases** / detail | The finding with evidence links, the full resolution loop (plans, emails, checks), evidence with source and record ID, timers and limits, World Model history, step-by-step agent traces |
+| **Approvals** | Edit, approve or send back every email; approve closures after verification |
+| **Simulator** | Plays the outside world (replies, demo clock, duplicate resend), clearly labelled simulated |
+| **System** (via the *All systems connected* indicator, top right) | Live Zetaris sources, Nightshift/Nemotron lanes, World Model stats and conformance |
 
-Send header `x-demo-user: owner` (case owner) or `x-demo-user: manager`
-(operations manager).
+Switch between the case owner and the operations manager at the top right.
 
 ---
 
@@ -192,34 +230,25 @@ Send header `x-demo-user: owner` (case owner) or `x-demo-user: manager`
 - `eval/answer_sheet/` holds the expected answers for scoring. No agent code reads it.
 - Database passwords in `infra/` and `.env.example` are local-only development
   defaults for containers bound to `127.0.0.1`.
+- Scanned AWBs need a vision lane in Nightshift; without one, Track-N asks the
+  person to type the fields (it never guesses).
 
 ## Traces
 
 Every agent run writes `backend/data/traces/<runId>.jsonl`: each model request
 (requested and served model, latency, token usage), each Zetaris query (SQL,
 row count, sample rows) and each decision. Runs stop at 25 steps and are marked
-*paused*, not failed.
+*paused*, not failed. The dashboard shows them on each case page.
 
 ## Pre-existing components (declared)
 
 - **Meterless World Model reference implementation**, vendored unchanged from
   [Meterless/Meterless](https://github.com/Meterless/Meterless) (Apache-2.0) with
   its conformance runner. See `backend/src/engines/world-model/NOTICE.md`.
-- Open-source libraries listed in `backend/package.json`.
-- The team built an earlier, unrelated shipment-tracking prototype; its feature ideas
-  (AWB upload with human confirmation, chat, navigation) informed this project. No
-  code or assets from it are included.
-
-## Roadmap
-
-- [x] Four sources in Zetaris, cross-source queries
-- [x] World Model engine as shared case state (conformance 8/8)
-- [x] Nightshift + Nemotron for every agent request
-- [x] Investigation, Planning, Communication, Verification, coordinator, chat
-- [x] Simulated carrier, customs and reply scenarios for all seven problem types
-- [ ] Dashboard (Overview, Shipments, Upload AWB, Cases, Approvals, Simulator, Integrations)
-- [ ] Evaluation script against the answer sheet
-- [ ] Demo video and slides
+- Open-source libraries listed in `backend/package.json` and `dashboard/package.json`.
+- The dashboard's visual style (layout, stylesheet, icons, chat panel and
+  animations) is adapted from an earlier shipment-tracking prototype built by a
+  team member; no logic, data, branding or logo from it is included.
 
 ## Team
 

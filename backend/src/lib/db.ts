@@ -7,6 +7,9 @@ import pg from "pg";
 import mysql from "mysql2/promise";
 import { config } from "../config.ts";
 
+// Keep DATE columns as plain "YYYY-MM-DD" strings (no timezone shift).
+pg.types.setTypeParser(1082, (value) => value);
+
 export const ops = new pg.Pool({ connectionString: config.opsDbUrl, max: 5 });
 export const finance = mysql.createPool({ uri: config.financeDbUrl, connectionLimit: 3, dateStrings: true });
 

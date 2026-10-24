@@ -11,7 +11,7 @@ import { caseFacts, getCase, listPlans, savePlan, type Plan } from "../state/cas
 import { partiesFor, procedureFor, type Procedure } from "./sources.ts";
 
 export type PlanContext = {
-  reason: "new_case" | "sent_back" | "vague" | "wrong_document" | "conflicting" | "unsubstantiated" | "progress";
+  reason: "new_case" | "person_feedback" | "sent_back" | "vague" | "wrong_document" | "conflicting" | "unsubstantiated" | "progress";
   detail: string;
   fromRole?: string;
 };
@@ -25,7 +25,7 @@ Rules: follow the procedure's recipients; never ask for or suggest an HS code; a
 Return JSON: {"action": "request|follow_up|escalate", "toRole": "<one of the allowed roles>", "goal": "<what this step achieves>", "ask": "<what exactly we ask for, one or two sentences>", "proofNeeded": ["<evidence that will close the case>"], "reason": "<why this party and this ask, referring to the evidence>"}`;
 
 function fallbackPlan(proc: Procedure, ctx: PlanContext): Omit<Plan, "id" | "caseId" | "at"> {
-  if (ctx.reason === "new_case") {
+  if (ctx.reason === "new_case" || ctx.reason === "person_feedback") {
     return { goal: `Resolve: ${proc.title}`, action: "request", toRole: proc.request_to_role, ask: proc.request_items, proofNeeded: [proc.closing_evidence], reason: "Procedure default recipient (rule-based fallback)." };
   }
   const toRole = ctx.reason === "wrong_document" || ctx.reason === "vague" ? ctx.fromRole ?? proc.request_to_role : proc.confirm_with_role;
@@ -65,14 +65,17 @@ export async function plan(caseId: string, ctx: PlanContext): Promise<{ plan: Pl
         if (!["request", "follow_up", "escalate"].includes(v.action)) return "action must be request, follow_up or escalate";
         if (v.action !== "escalate" && !allowed.some((p) => p.role === v.toRole)) return `toRole must be one of ${allowed.map((p) => p.role).join(", ")}`;
         if (!v.ask || v.ask.length < 15) return "ask must say exactly what we need";
-        if (c.problemType === "HS_CODE_ERROR" && /\b(use|change (it )?to|should be|correct code is)\b[^.]*\b\d{6,10}\b/i.test(v.ask)) return "never suggest an HS code; the broker decides it";
+        if (ctx.reason === "wrong_document" && ctx.fromRole && v.toRole !== ctx.fromRole) return `a wrong document goes back to its sender (${ctx.fromRole}) naming the mistake`;
+        if (ctx.reason === "new_case" && v.action === "request" && v.toRole !== proc.request_to_role) return `the first request goes to the ${proc.request_to_role}, as the procedure says`;
+        const withoutAwbs = `${v.ask} ${v.goal}`.replace(/\b\d{3}[- ]?\d{4} ?\d{4}\b/g, "");
+        if (c.problemType === "HS_CODE_ERROR" && /\b\d{6,10}\b/.test(withoutAwbs)) return "never name or suggest an HS code; ask for specifications and let the broker decide the code";
         return null;
       },
     });
     proposal.proofNeeded = proposal.proofNeeded?.length ? proposal.proofNeeded : [proc.closing_evidence];
   } catch (err) {
     if (!(err instanceof LlmError)) throw err;
-    record("decision", `Model unavailable; using the procedure default plan`);
+    record("decision", `No valid model plan (${(err as Error).message.slice(0, 120)}); using the procedure default plan`);
     proposal = fallbackPlan(proc, ctx);
   }
   if (ctx.reason !== "new_case" && previous.length) proposal.revisedBecause = ctx.detail;

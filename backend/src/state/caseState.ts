@@ -234,7 +234,10 @@ export async function savePlan(caseId: string, plan: Omit<Plan, "id" | "caseId" 
   if (awaitingEmail) {
     await world.upsertEntity({ type: "party", externalKey: key(awaitingEmail.toLowerCase()), attrs: { email: awaitingEmail, role: plan.toRole }, source: src(by) });
     // Bitemporal: re-pointing "awaiting" closes the previous edge instead of deleting it.
-    await world.relate({ from: ids.case(caseId), type: "awaiting", to: ids.party(awaitingEmail), validFrom: full.at, source: src(by) });
+    const current = world.view("graph").neighborsOf(ids.case(caseId), { via: "awaiting" }).map((e) => e.id);
+    if (!current.includes(ids.party(awaitingEmail))) {
+      await world.relate({ from: ids.case(caseId), type: "awaiting", to: ids.party(awaitingEmail), validFrom: full.at, source: src(by) });
+    }
   }
   await setFacts(caseId, { nextAction: plan.ask, awaitingRole: plan.toRole }, by);
   return full;
@@ -264,7 +267,8 @@ export async function saveDraft(caseId: string, draft: Omit<Draft, "id" | "caseI
 }
 
 export async function updateDraft(id: string, patch: Partial<Draft>, by: string): Promise<Draft> {
-  await world.upsertEntity({ type: "draft", externalKey: key(id), attrs: patch as Record<string, unknown>, source: src(by) });
+  const attrs = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined && v !== ""));
+  await world.upsertEntity({ type: "draft", externalKey: key(id), attrs, source: src(by) });
   return getDraft(id)!;
 }
 

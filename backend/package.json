@@ -9,7 +9,10 @@
     "setup:zetaris": "tsx scripts/setupZetaris.ts",
     "conformance": "tsx scripts/conformance.ts",
     "eval": "tsx scripts/evaluate.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "scenarios": "tsx scripts/runScenarios.ts",
+    "reset": "tsx scripts/resetDemo.ts",
+    "load:demo": "tsx scripts/loadDemoShipments.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

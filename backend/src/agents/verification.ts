@@ -11,7 +11,7 @@
 import { chatJson, LlmError } from "../lib/llm.ts";
 import { digitsOnly, similarCompany } from "../lib/refs.ts";
 import { record } from "../lib/trace.ts";
-import { lit, num, runSql, SOURCES, str, type Row } from "../lib/zetaris.ts";
+import { lit, num, runSql, SOURCES, str, ts, type Row } from "../lib/zetaris.ts";
 import { addEvidence, getCase, saveVerification, type Check, type VerificationResult } from "../state/caseState.ts";
 import type { ReplyReading } from "./communication.ts";
 import { customsFor, documentsFor, invoicesFor, procedureFor, shipmentByAwb, trackingFor } from "./sources.ts";
@@ -83,8 +83,8 @@ async function customsReleased(awb: string, since: string, claimedRefs: string[]
   const entry = (await customsFor(awb))[0];
   const row = entry?.row;
   const released = !!row && /^(released|cleared)$/i.test(str(row.status)) && !!row.release_ref;
-  const after = !!row && Date.parse(str(row.status_at)) >= Date.parse(since);
-  const cited = claimedRefs.filter((r) => /^(CLR|REL|AUH-REL|DXB-REL)/i.test(r));
+  const after = !!row && ts(row.status_at) >= Date.parse(since);
+  const cited = [...new Set(claimedRefs.map((r) => r.trim().replace(/\.(pdf|png|jpe?g)$/i, "")).filter((r) => /^(CLR|REL|AUH-REL|DXB-REL)/i.test(r)))];
   const citedOk = cited.every((r) => r.replace(/\W/g, "").toUpperCase() === str(row?.release_ref).replace(/\W/g, "").toUpperCase());
   return [
     ok("Customs record shows released", released, row ? `Customs entry ${row.entry_no}: ${row.status}${row.release_ref ? `, release ${row.release_ref}` : ""}` : "No customs entry found"),
@@ -136,7 +136,7 @@ async function typeChecks(caseId: string, since: string, claimedRefs: string[]):
   }
   if (t === "CONFLICTING_STATUS") {
     const pod = docs.filter((d) => d.doc_type === "PROOF_OF_DELIVERY").pop();
-    checks.push(ok("Signed receipt from the consignee", !!pod && Date.parse(str(pod.received_at)) >= Date.parse(since), pod ? `${pod.ref_no} signed ${str(pod.issued_on).slice(0, 10)}` : "No proof of delivery on file (delivery was claimed)"));
+    checks.push(ok("Signed receipt from the consignee", !!pod && ts(pod.received_at) >= Date.parse(since), pod ? `${pod.ref_no} signed ${str(pod.issued_on).slice(0, 10)}` : "No proof of delivery on file (delivery was claimed)"));
   }
   if (t === "TRANSPORT_DELAY") {
     const ev = (await trackingFor(c.awbNo)).map((r) => r.row);
@@ -162,6 +162,12 @@ export async function verifyResolution(caseId: string, reading: ReplyReading, ma
   ];
   const typed = await typeChecks(caseId, since, reading.claimedRefs);
   checks.push(...typed.checks);
+  // An email claim is evidence to check, not the decision. When every check against the
+  // systems of record passes, a reply worded as partial or progress does not block closure.
+  const recordChecks = checks.filter((k) => !k.name.startsWith("Reply"));
+  if (!checks[0].passed && ["PARTIAL", "PROGRESS_UPDATE"].includes(reading.replyType) && recordChecks.length > 0 && recordChecks.every((k) => k.passed)) {
+    checks[0] = ok("Reply is real resolution evidence", true, `Reply worded as ${reading.replyType}, but the systems of record prove the result: ${reading.meaning}`);
+  }
 
   // Stage 1 of a transport delay: progress, not closure.
   const stageOnly = typed.stage === "departed" && checks.filter((k) => !k.passed).every((k) => k.name.startsWith("Stage 2") || k.name.startsWith("Reply is real"));

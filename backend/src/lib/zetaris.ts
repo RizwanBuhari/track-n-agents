@@ -78,3 +78,11 @@ export const SOURCES = {
   tracking: "trackn_carrier.tracking_events",
   customs: "trackn_customs.customs_entries",
 } as const;
+
+/** Zetaris returns TIMESTAMP values in UTC without a zone ("2026-10-24 13:57:42.692"). */
+export function ts(value: unknown): number {
+  const s = str(value).trim();
+  if (!s) return NaN;
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s)) return Date.parse(s.replace(" ", "T") + "Z");
+  return Date.parse(s);
+}

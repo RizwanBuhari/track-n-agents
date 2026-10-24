@@ -58,8 +58,12 @@ function normalize(raw: Partial<ShipmentFields>): ShipmentFields {
   for (const k of FIELD_NAMES) if (typeof f[k] !== "number" && f[k] !== null) (f as Record<string, unknown>)[k] = String(f[k]).trim();
   f.awbNumber = canonicalAwb(f.awbNumber) ?? f.awbNumber;
   f.flightNumber = f.flightNumber.toUpperCase().replace(/^([A-Z0-9]{2})\s*(\d{1,4})$/, "$1 $2");
-  f.origin = f.origin.toUpperCase();
-  f.destination = f.destination.toUpperCase();
+  // "SEOUL INCHEON (ICN)" -> "ICN"
+  const iata = (v: string) => v.toUpperCase().match(/\(([A-Z]{3})\)/)?.[1] ?? (v.toUpperCase().match(/^[A-Z]{3}$/) ? v.toUpperCase() : v.toUpperCase());
+  f.origin = iata(f.origin);
+  f.destination = iata(f.destination);
+  // The packaging line ("18 CARTONS") is not part of the goods description.
+  f.cargoDescription = f.cargoDescription.replace(/[\s,;]+\d+\s+(CARTONS?|PACKAGES?|CTNS?|PALLETS?)\s*$/i, "").trim();
   return f;
 }
 
