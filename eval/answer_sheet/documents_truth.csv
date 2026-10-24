@@ -1,0 +1,140 @@
+doc_file,field,correct_value
+CASE-001_AWB.pdf,awb_no,901-44173021
+CASE-001_AWB.pdf,shipper,"Shenzhen Brightway Technology Co., Ltd."
+CASE-001_AWB.pdf,consignee,Orion Electronics FZE
+CASE-001_AWB.pdf,origin,PVG
+CASE-001_AWB.pdf,destination,DXB
+CASE-001_AWB.pdf,flight,DW 512
+CASE-001_AWB.pdf,flight_date,2026-10-11
+CASE-001_AWB.pdf,pieces,40
+CASE-001_AWB.pdf,gross_weight_kg,420.0
+CASE-001_AWB.pdf,goods,"LAPTOP COMPUTERS (14-INCH), 200 UNITS"
+CASE-001_PL.pdf,awb_no_as_written,90144173021
+CASE-001_PL.pdf,pieces,40
+CASE-001_PL.pdf,gross_weight_kg,420.0
+CASE-002_AWB.pdf,awb_no,901-51288462
+CASE-002_AWB.pdf,shipper,Rhine Precision Valves GmbH
+CASE-002_AWB.pdf,consignee,Blue Dune Trading LLC
+CASE-002_AWB.pdf,origin,FRA
+CASE-002_AWB.pdf,destination,DXB
+CASE-002_AWB.pdf,flight,DW 207
+CASE-002_AWB.pdf,flight_date,2026-10-09
+CASE-002_AWB.pdf,pieces,12
+CASE-002_AWB.pdf,gross_weight_kg,318.5
+CASE-002_AWB.pdf,goods,"STAINLESS STEEL BALL VALVES, DN50, 96 PCS"
+CASE-002_INV.pdf,invoice_no,RPV-2026-4471
+CASE-002_INV.pdf,shipment_ref,901-28755311
+CASE-002_INV.pdf,hs_code,848180
+CASE-002_INV.pdf,total_value,41250.0
+CASE-002_INV.pdf,currency,EUR
+CASE-002_PL.pdf,awb_no_as_written,90151288462
+CASE-002_PL.pdf,pieces,12
+CASE-002_PL.pdf,gross_weight_kg,318.5
+CASE-003_AWB.pdf,awb_no,902-33904150
+CASE-003_AWB.pdf,shipper,Kaveri Textiles Pvt. Ltd.
+CASE-003_AWB.pdf,consignee,Al Noor Garments Trading LLC
+CASE-003_AWB.pdf,origin,BOM
+CASE-003_AWB.pdf,destination,SHJ
+CASE-003_AWB.pdf,flight,GA 418
+CASE-003_AWB.pdf,flight_date,2026-10-13
+CASE-003_AWB.pdf,pieces,25
+CASE-003_AWB.pdf,gross_weight_kg,510.0
+CASE-003_AWB.pdf,goods,WOVEN COTTON FABRIC ROLLS
+CASE-003_INV.pdf,invoice_no,KTL/EXP/26/312
+CASE-003_INV.pdf,shipment_ref,902-33904150
+CASE-003_INV.pdf,hs_code,520812
+CASE-003_INV.pdf,total_value,18400.0
+CASE-003_INV.pdf,currency,USD
+CASE-003_PL.pdf,awb_no_as_written,90233904150
+CASE-003_PL.pdf,pieces,25
+CASE-003_PL.pdf,gross_weight_kg,510.0
+CASE-004_AWB.pdf,awb_no,901-60217791
+CASE-004_AWB.pdf,shipper,Bosphorus Medical Supplies A.S.
+CASE-004_AWB.pdf,consignee,Crescent Healthcare Distributors LLC
+CASE-004_AWB.pdf,origin,IST
+CASE-004_AWB.pdf,destination,DXB
+CASE-004_AWB.pdf,flight,DW 331
+CASE-004_AWB.pdf,flight_date,2026-10-07
+CASE-004_AWB.pdf,pieces,18
+CASE-004_AWB.pdf,gross_weight_kg,236.0
+CASE-004_AWB.pdf,goods,DISPOSABLE NITRILE EXAMINATION GLOVES
+CASE-004_INV.pdf,invoice_no,BMS-26-1188
+CASE-004_INV.pdf,shipment_ref,901-60217791
+CASE-004_INV.pdf,hs_code,401519
+CASE-004_INV.pdf,total_value,12900.0
+CASE-004_INV.pdf,currency,USD
+CASE-004_PL.pdf,awb_no_as_written,90160217791
+CASE-004_PL.pdf,pieces,18
+CASE-004_PL.pdf,gross_weight_kg,236.0
+CASE-005_AWB.pdf,awb_no,902-71844205
+CASE-005_AWB.pdf,shipper,Hanbit Smart Devices Co.
+CASE-005_AWB.pdf,consignee,Falcon Retail LLC
+CASE-005_AWB.pdf,origin,ICN
+CASE-005_AWB.pdf,destination,DXB
+CASE-005_AWB.pdf,flight,GA 905
+CASE-005_AWB.pdf,flight_date,2026-10-12
+CASE-005_AWB.pdf,pieces,30
+CASE-005_AWB.pdf,gross_weight_kg,288.0
+CASE-005_AWB.pdf,goods,"SMARTPHONES, 600 UNITS"
+CASE-005_INV.pdf,invoice_no,HSD-EX-26-0457
+CASE-005_INV.pdf,shipment_ref,902-71844205
+CASE-005_INV.pdf,hs_code,610910
+CASE-005_INV.pdf,total_value,150000.0
+CASE-005_INV.pdf,currency,USD
+CASE-005_PL.pdf,awb_no_as_written,90271844205
+CASE-005_PL.pdf,pieces,30
+CASE-005_PL.pdf,gross_weight_kg,288.0
+CASE-006_AWB.pdf,awb_no,901-28755311
+CASE-006_AWB.pdf,shipper,Milano Forma Design S.r.l.
+CASE-006_AWB.pdf,consignee,Palm Interiors LLC
+CASE-006_AWB.pdf,origin,MXP
+CASE-006_AWB.pdf,destination,DXB
+CASE-006_AWB.pdf,flight,DW 118
+CASE-006_AWB.pdf,flight_date,2026-10-10
+CASE-006_AWB.pdf,pieces,14
+CASE-006_AWB.pdf,gross_weight_kg,612.0
+CASE-006_AWB.pdf,goods,UPHOLSTERED LOUNGE CHAIRS
+CASE-006_INV.pdf,invoice_no,MFD-26-0712
+CASE-006_INV.pdf,shipment_ref,901-28755311
+CASE-006_INV.pdf,hs_code,940161
+CASE-006_INV.pdf,total_value,33600.0
+CASE-006_INV.pdf,currency,EUR
+CASE-006_PL.pdf,awb_no_as_written,90128755311
+CASE-006_PL.pdf,pieces,14
+CASE-006_PL.pdf,gross_weight_kg,548.0
+CASE-007_AWB.pdf,awb_no,902-83401765
+CASE-007_AWB.pdf,shipper,Pacific Harvest Foods Pty Ltd
+CASE-007_AWB.pdf,consignee,Oasis Fresh Foodstuff Trading LLC
+CASE-007_AWB.pdf,origin,MEL
+CASE-007_AWB.pdf,destination,DXB
+CASE-007_AWB.pdf,flight,GA 640
+CASE-007_AWB.pdf,flight_date,2026-10-08
+CASE-007_AWB.pdf,pieces,20
+CASE-007_AWB.pdf,gross_weight_kg,402.0
+CASE-007_AWB.pdf,goods,"DRIED FRUIT AND NUT MIX, 1 KG PACKS"
+CASE-007_INV.pdf,invoice_no,PHF-INV-88213
+CASE-007_INV.pdf,shipment_ref,902-83401765
+CASE-007_INV.pdf,hs_code,081350
+CASE-007_INV.pdf,total_value,21800.0
+CASE-007_INV.pdf,currency,AUD
+CASE-007_PL.pdf,awb_no_as_written,90283401765
+CASE-007_PL.pdf,pieces,20
+CASE-007_PL.pdf,gross_weight_kg,402.0
+CASE-008_AWB.pdf,awb_no,902-19588030
+CASE-008_AWB.pdf,shipper,Nordvik Pumps AB
+CASE-008_AWB.pdf,consignee,Sahara Water Systems LLC
+CASE-008_AWB.pdf,origin,ARN
+CASE-008_AWB.pdf,destination,AUH
+CASE-008_AWB.pdf,flight,GA 271
+CASE-008_AWB.pdf,flight_date,2026-10-06
+CASE-008_AWB.pdf,pieces,6
+CASE-008_AWB.pdf,gross_weight_kg,274.0
+CASE-008_AWB.pdf,goods,CENTRIFUGAL WATER PUMPS AND SPARE SEALS
+CASE-008_INV.pdf,invoice_no,NVP-26-3390
+CASE-008_INV.pdf,shipment_ref,902-19588030
+CASE-008_INV.pdf,hs_code,841370
+CASE-008_INV.pdf,total_value,27450.0
+CASE-008_INV.pdf,currency,EUR
+CASE-008_PL.pdf,awb_no_as_written,90219588030
+CASE-008_PL.pdf,pieces,6
+CASE-008_PL.pdf,gross_weight_kg,274.0

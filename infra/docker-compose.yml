@@ -1,0 +1,44 @@
+# Track-N data sources. Both databases join the Zetaris network so the
+# Zetaris driver can reach them by container name over JDBC.
+name: trackn
+
+services:
+  ops-db:
+    image: postgres:16-alpine
+    container_name: trackn-ops-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: trackn_ops
+      POSTGRES_USER: ${OPS_DB_USER:-trackn}
+      POSTGRES_PASSWORD: ${OPS_DB_PASSWORD:-trackn_local_only}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ./ops-db:/docker-entrypoint-initdb.d:ro
+      - ops-data:/var/lib/postgresql/data
+    networks: [zetaris]
+
+  finance-db:
+    image: mysql:8.4
+    container_name: trackn-finance-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: trackn_finance
+      MYSQL_USER: ${FINANCE_DB_USER:-trackn}
+      MYSQL_PASSWORD: ${FINANCE_DB_PASSWORD:-trackn_local_only}
+      MYSQL_ROOT_PASSWORD: ${FINANCE_DB_ROOT_PASSWORD:-trackn_root_local_only}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - ./finance-db:/docker-entrypoint-initdb.d:ro
+      - finance-data:/var/lib/mysql
+    networks: [zetaris]
+
+volumes:
+  ops-data:
+  finance-data:
+
+networks:
+  zetaris:
+    name: zetaris_default
+    external: true
