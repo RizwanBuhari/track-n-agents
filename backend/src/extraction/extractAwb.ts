@@ -85,7 +85,18 @@ function crossCheck(fields: ShipmentFields, text: string, flagged: Set<string>, 
     flagged.add("chargeableWeightKg");
     notes.push("Chargeable weight is below gross weight.");
   }
-  for (const k of ["origin", "destination"] as const) if (fields[k] && !/^[A-Z]{3}$/.test(fields[k])) flagged.add(k);
+  for (const k of ["origin", "destination"] as const) {
+    if (!fields[k] || /^[A-Z]{3}$/.test(fields[k])) continue;
+    // The model gave an airport name: take the IATA code printed next to it, e.g. "STOCKHOLM ARLANDA (ARN)".
+    const name = fields[k].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const printed = text.toUpperCase().match(new RegExp(`${name}\\s*\\(([A-Z]{3})\\)`));
+    if (printed) {
+      notes.push(`${k === "origin" ? "Origin" : "Destination"} "${fields[k]}" read as ${printed[1]}.`);
+      fields[k] = printed[1];
+    } else {
+      flagged.add(k);
+    }
+  }
   // IATA "Requested Flight/Date" is printed like DW512/10OCT26: parse it ourselves and correct the model.
   const m = text.toUpperCase().match(/\b([A-Z0-9]{2})\s?(\d{1,4})\s*\/\s*(\d{2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2})\b/);
   if (m) {

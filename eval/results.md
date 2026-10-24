@@ -1,13 +1,13 @@
 # Track-N evaluation
 
-Run 2026-10-24T14:18:44.409Z · models: nvidia/nemotron-3-ultra-550b-a55b (investigation), nvidia/nemotron-3.5-lightning-30b-a3b (extraction)
+Run 2026-10-24T14:41:39.624Z · models: nvidia/nemotron-3-ultra-550b-a55b (investigation), nvidia/nemotron-3.5-lightning-30b-a3b (extraction)
 
 ## 1. AWB extraction (text PDFs)
 
 | Document | Correct | Wrong fields |
 |---|---|---|
 | CASE-001_AWB.pdf | 10/10 | — |
-| CASE-002_AWB.pdf | 9/10 | goods: got "STAINLESS STEEL BALL VALVES, DN50", expected "STAINLESS STEEL BALL VALVES, DN50, 96 PCS" |
+| CASE-002_AWB.pdf | 10/10 | — |
 | CASE-003_AWB.pdf | 10/10 | — |
 | CASE-004_AWB.pdf | 10/10 | — |
 | CASE-005_AWB.pdf | 10/10 | — |
@@ -15,7 +15,7 @@ Run 2026-10-24T14:18:44.409Z · models: nvidia/nemotron-3-ultra-550b-a55b (inves
 | CASE-007_AWB.pdf | 10/10 | — |
 | CASE-008_AWB.pdf | 10/10 | — |
 
-**Field accuracy: 79/80 (98.8%).** Scanned copies are not scored: without a vision lane they go to manual entry by design.
+**Field accuracy: 80/80 (100.0%).** Scanned copies are not scored: without a vision lane they go to manual entry by design.
 
 ## 2. Investigation and first action
 

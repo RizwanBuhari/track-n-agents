@@ -1,6 +1,6 @@
 # Track-N
 
-**Multi-agent shipment exception resolution for air freight operations.**
+**Multi-agent shipment exception resolution for logistics operations, demonstrated on air freight.**
 Built for the Open Agent Hackathon 2026, Track 1: *Solving Fragmented Intelligence*.
 
 When an air shipment gets stuck, the reason is scattered across systems that
@@ -70,6 +70,20 @@ gates: no email is sent and no case is closed without a person.
 
 Missing invoice · Wrong shipment reference on the invoice · Transport delay ·
 Conflicting status · Wrong HS code · Weight mismatch · Missing certificate.
+
+### Beyond air freight
+
+The agents, the Zetaris data layer, the World Model case state, the approval
+flow and most problem types (invoice, reference, HS code, weight, certificate,
+conflicting status) are the same for sea and road shipments. The demo covers
+air freight to keep the scope reliable. Adding another mode means adding its
+pieces, not changing the system:
+
+| Air (built) | Sea / road (future) |
+|---|---|
+| AWB reader, AWB check digit | Bill of lading / CMR reader, container-number check digit |
+| Flight offload and rebooking | Vessel rollover, missed cut-off, truck delay |
+| Carrier flight events | Vessel and gate events |
 
 ---
 
@@ -179,6 +193,7 @@ then prints one query joining Postgres, MySQL and the customs REST API.
 ```bash
 npm run load:demo           # extracts the demo AWBs (CASE-001 is left for a live upload; add -- --all for all)
 npm run conformance         # Meterless World Model conformance: expect 8/8
+npm run doctor              # checks every prerequisite and prints the fix for anything missing
 ```
 
 ### 6. Run the dashboard
@@ -212,7 +227,7 @@ start it again, `npm run load:demo -- --all`.
 | **Upload AWB** | Drop a PDF, check the extracted fields beside the document (flagged fields highlighted), confirm |
 | **Cases** / detail | The finding with evidence links, the full resolution loop (plans, emails, checks), evidence with source and record ID, timers and limits, World Model history, step-by-step agent traces |
 | **Approvals** | Edit, approve or send back every email; approve closures after verification |
-| **Simulator** | Plays the outside world (replies, demo clock, duplicate resend), clearly labelled simulated |
+| **Simulator** (via *Demo controls*, top right) | Plays the outside world (replies, demo clock, duplicate resend), clearly labelled simulated; not part of the operations product |
 | **System** (via the *All systems connected* indicator, top right) | Live Zetaris sources, Nightshift/Nemotron lanes, World Model stats and conformance |
 
 Switch between the case owner and the operations manager at the top right.

@@ -46,8 +46,20 @@ npm install
 npm run dev                        # http://localhost:5173
 ```
 
-Quick health check: `GET http://localhost:4100/api/integrations` should show
-Zetaris sources with record counts, Nemotron models, and World Model stats.
+Then check everything in one go (backend running):
+
+```bash
+cd backend
+npm run doctor
+```
+
+It prints PASS/FAIL for `.env`, Docker, Zetaris, the Track-N databases, the
+registered sources, Nightshift and the Nemotron lanes, and the World Model
+engine, with the fix for each failure.
+
+> **Nemotron availability differs per NVIDIA account.** If the doctor says a
+> pinned model is not offered, pick ones your account serves (Nightshift model
+> list) and set `METERLESS_FAST_MODEL` / `METERLESS_DEEP_MODEL` in `.env`.
 
 ### Resetting the demo state
 

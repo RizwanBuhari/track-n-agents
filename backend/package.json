@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "scenarios": "tsx scripts/runScenarios.ts",
     "reset": "tsx scripts/resetDemo.ts",
-    "load:demo": "tsx scripts/loadDemoShipments.ts"
+    "load:demo": "tsx scripts/loadDemoShipments.ts",
+    "doctor": "tsx scripts/doctor.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

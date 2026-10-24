@@ -156,3 +156,10 @@ code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.92em;
 .sys-down { background: #b42318; border-color: #fda29b; }
 .sys-down .sys-dot { background: #fff; }
 @media (max-width: 900px) { .sys-status { font-size: 0; gap: 0; padding: 6px; } }
+
+/* ---------- Demo controls (top strip) ---------- */
+.demo-controls { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; text-decoration: none; background: var(--accent); border: 1px dashed rgba(255, 255, 255, 0.7); transition: filter 0.15s ease; }
+.demo-controls:hover { filter: brightness(1.08); }
+.demo-controls.active { box-shadow: 0 0 0 2px #fff; }
+.demo-controls svg { width: 12px; height: 12px; }
+@media (max-width: 900px) { .demo-controls { font-size: 0; gap: 0; padding: 6px; } }

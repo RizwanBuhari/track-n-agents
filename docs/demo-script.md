@@ -20,7 +20,7 @@ Overview already shows open cases.
 | 0:20 | Upload AWB | Drop CASE-001's AWB. Fields are extracted by Nemotron; flagged fields would be highlighted. Confirm. |
 | 0:40 | Case TN-xxxx | Investigation joined four sources through Zetaris: no invoice in finance (MySQL), customs HELD (REST), tracking hold (REST), the broker's email (Postgres). Every sentence links to evidence. Verification challenged the finding before anyone was contacted. |
 | 1:05 | Case → draft | Planning chose the shipper; Communication drafted the request. Approve and send. |
-| 1:20 | Simulator | Deliver *Shipper: "Invoice sent"*. |
+| 1:20 | Demo controls (top right) | Deliver *Shipper: "Invoice sent"*. |
 | 1:30 | Case | Classified PARTIAL. Verification rejects closing: no invoice on file, customs still HELD. Planning re-targets the broker. Point at "Waiting on (history)": shipper crossed out, broker current (World Model bitemporal edge). Approve. |
 | 1:55 | Simulator → Case | Deliver *Broker: release claimed, not in customs yet*. Rejected: the cited release reference is not in the customs record. |
 | 2:15 | Simulator → Case | Re-send the last reply (duplicate): linked, no new action. Deliver *Broker: invoice accepted + released*. All checks pass; the critic agrees. |

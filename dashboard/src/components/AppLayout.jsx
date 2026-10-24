@@ -14,7 +14,6 @@ const NAV_ITEMS = [
   { to: '/upload', label: 'Upload AWB', icon: Icon.upload },
   { to: '/cases', label: 'Cases', icon: Icon.alert },
   { to: '/approvals', label: 'Approvals', icon: Icon.shield, badge: true },
-  { to: '/simulator', label: 'Simulator', icon: Icon.play },
 ]
 
 // Small health indicator; the full integration details live at /system.
@@ -77,6 +76,10 @@ export default function AppLayout() {
           <div className="topstrip-inner">
             <LiveTicker />
             <div className="topstrip-right">
+              {/* The simulated outside world for demos; not part of the operations product. */}
+              <NavLink to="/simulator" className="demo-controls" title="Simulated replies and demo clock">
+                {Icon.play} Demo controls
+              </NavLink>
               <SystemStatus />
               {clock && (
                 <span className="topstrip-clock" title="Demo clock (Team Demo Rules)">
