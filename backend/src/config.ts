@@ -37,7 +37,8 @@ export const config = {
     // Pinned Nemotron lanes so every agent request is served by NVIDIA Nemotron.
     fastModel: process.env.METERLESS_FAST_MODEL ?? process.env.METERLESS_MODEL ?? "nvidia/nemotron-3.5-lightning-30b-a3b",
     deepModel: process.env.METERLESS_DEEP_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b",
-    visionModel: process.env.METERLESS_VISION_MODEL ?? "meterless/vision",
+    // OCR for scanned AWBs (a local vision lane in Nightshift); Nemotron then extracts the fields.
+    visionModel: process.env.METERLESS_VISION_MODEL ?? "local-runtime/paddleocr-vl-1.6",
     app: "track-n",
   },
   opsDbUrl: env("OPS_DB_URL", "postgres://trackn:trackn_local_only@127.0.0.1:5433/trackn_ops"),
