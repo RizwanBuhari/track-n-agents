@@ -1,6 +1,6 @@
 // Small shared building blocks: badges, page header, panels, stat tiles.
 import { Link } from 'react-router-dom'
-import { AGENT, CASE_STATUS, PROBLEM_LABEL, REPLY_TONE } from '../utils/format'
+import { AGENT, CASE_STATUS, PRIORITY_TONE, PROBLEM_LABEL, REPLY_TONE } from '../utils/format'
 import { Icon } from './icons'
 
 export function CaseStatus({ status }) {
@@ -15,6 +15,18 @@ export function CaseStatus({ status }) {
 
 export function Problem({ type }) {
   return <span className="badge tone-brand">{PROBLEM_LABEL[type] ?? type}</span>
+}
+
+// Severity (S, from the case content) and urgency (U, from timers and loops); hover for the reasons.
+export function Priority({ p, compact }) {
+  if (!p) return null
+  return (
+    <span className={`badge priority-badge tone-${PRIORITY_TONE[p.level] ?? 'neutral'}`} title={p.reasons.join('\n')}>
+      <span className="badge-dot" />
+      {p.level}
+      {!compact && <span className="priority-su">S{p.severity}·U{p.urgency}</span>}
+    </span>
+  )
 }
 
 export function ReplyType({ type }) {

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, useEvents, useLive } from '../api'
 import { Icon } from '../components/icons'
 import PageLoader from '../components/PageLoader'
-import { AgentChip, CaseStatus, Empty, Panel, Problem, Stat } from '../components/ui'
+import { AgentChip, CaseStatus, Empty, Panel, Priority, Problem, Stat } from '../components/ui'
 import { OPEN, ago } from '../utils/format'
 
 export default function OverviewPage() {
@@ -68,7 +68,7 @@ export default function OverviewPage() {
                       <span className="mini-title">{c.caseId} · AWB {c.awbNo}</span>
                       <span className="mini-sub"><Problem type={c.problemType} /> {["WAITING_REPLY", "AWAITING_ARRIVAL", "WAITING_ON_ISSUER"].includes(c.status) && `waiting on ${c.awaitingRole}`}</span>
                     </span>
-                    <span className="mini-meta"><CaseStatus status={c.status} /></span>
+                    <span className="mini-meta"><Priority p={c.priority} compact /> <CaseStatus status={c.status} /></span>
                   </Link>
                 </li>
               ))}

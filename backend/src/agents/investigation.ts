@@ -11,6 +11,7 @@ import { digitsOnly, similarCompany } from "../lib/refs.ts";
 import { record } from "../lib/trace.ts";
 import { assertReadOnly, num, str, ZetarisError } from "../lib/zetaris.ts";
 import { addEvidence, caseFacts, findOpenCase, openCase, setFacts, type Evidence } from "../state/caseState.ts";
+import { assessSeverity } from "./priority.ts";
 import { customsFor, documentsFor, freeQuery, invoicesFor, mailFor, shipmentByAwb, trackingFor, type SourceRow } from "./sources.ts";
 
 export type Bundle = {
@@ -288,5 +289,6 @@ export async function applyFinding(awb: string, owner: string, result: NonNullab
   // Rewrite [X#] references to the stored evidence ids so the dashboard can link them.
   const explanation = finding.explanation.replace(/\[(X\d+)\]/g, (m, k) => (keyMap.get(k) ? `[${keyMap.get(k)!.id}]` : m));
   await setFacts(caseId, { explanation, investigationRun: "" }, "investigation");
+  await assessSeverity(caseId);
   return caseId;
 }

@@ -42,6 +42,13 @@ export const AGENT = {
   coordinator: { label: 'Coordinator', tone: 'neutral' },
 }
 
+export const PRIORITY_TONE = {
+  Critical: 'alert',
+  High: 'warn',
+  Medium: 'info',
+  Low: 'neutral',
+}
+
 export const OPEN = ['INVESTIGATING', 'AWAITING_APPROVAL', 'WAITING_REPLY', 'AWAITING_ARRIVAL', 'WAITING_ON_ISSUER', 'VERIFYING', 'READY_TO_CLOSE', 'ESCALATED', 'STALLED']
 
 export function when(iso) {

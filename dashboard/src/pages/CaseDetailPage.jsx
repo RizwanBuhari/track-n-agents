@@ -4,8 +4,8 @@ import { api, currentUserId, useLive } from '../api'
 import DraftCard from '../components/DraftCard'
 import { Icon } from '../components/icons'
 import PageLoader from '../components/PageLoader'
-import { AgentChip, CaseStatus, Evidence, Panel, Problem, ReplyType } from '../components/ui'
-import { OPEN, when } from '../utils/format'
+import { AgentChip, CaseStatus, Evidence, Panel, Priority, Problem, ReplyType } from '../components/ui'
+import { OPEN, PRIORITY_TONE, when } from '../utils/format'
 
 function loopEvents(c) {
   const ev = []
@@ -77,6 +77,7 @@ export default function CaseDetailPage() {
         </div>
         <div className="page-actions">
           {running && <span className="badge tone-warn"><span className="spinner" /> agents working</span>}
+          {OPEN.includes(c.status) && <Priority p={c.priority} />}
           <CaseStatus status={c.status} />
           {c.escalated && <span className="badge tone-alert">escalated</span>}
         </div>
@@ -115,6 +116,28 @@ export default function CaseDetailPage() {
             <p className="finding-summary">{c.summary}</p>
             <p className="finding-text"><Evidence text={c.explanation} /></p>
           </Panel>
+
+          {c.priority && (
+            <Panel
+              icon={Icon.zap}
+              tone={PRIORITY_TONE[c.priority.level] ?? 'neutral'}
+              title="Why this priority"
+              actions={<>
+                <span className="badge tone-neutral">severity {c.severityMethod === 'model' ? 'rated by Nemotron' : c.severityMethod === 'rules' ? 'rated by rules' : 'not yet rated'}</span>
+                <button className="btn-outline btn-small" disabled={busy || running} onClick={() => act(`/cases/${c.caseId}/priority`)}>{Icon.refresh} Re-rate</button>
+              </>}
+            >
+              <div className="priority-scores">
+                <Priority p={c.priority} compact />
+                <span><strong>Severity</strong> {c.priority.severity}/5</span>
+                <span><strong>Urgency</strong> {c.priority.urgency}/5</span>
+                <span className="text-muted">score {c.priority.score}</span>
+              </div>
+              <ul className="priority-reasons">
+                {c.priority.reasons.map((r) => <li key={r}>{r}</li>)}
+              </ul>
+            </Panel>
+          )}
 
           <Panel icon={Icon.refresh} tone="brand" title="Resolution loop" bodyClass="panel-body">
             <ol className="loop">

@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { config } from "./config.ts";
 import { tick } from "./agents/coordinator.ts";
+import { backfillSeverity } from "./agents/priority.ts";
 import { api } from "./routes/api.ts";
 import { eventsHandler } from "./routes/events.ts";
 import { simApiRouter } from "./routes/sim.ts";
@@ -36,9 +37,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 app.listen(config.port, () => {
   console.log(`Track-N backend on http://localhost:${config.port}${config.sampleMode ? " (SAMPLE MODE: no Zetaris, databases or Nightshift)" : ""}`);
-  if (config.sampleMode) {
-    import("./sample/bootstrap.ts").then((m) => m.bootstrapSample()).catch((err) => console.error("sample bootstrap:", err));
-  }
+  // Cases created before priority ranking existed get rated once, after the sample data (if any) is loaded.
+  const ready = config.sampleMode ? import("./sample/bootstrap.ts").then((m) => m.bootstrapSample()).catch((err) => console.error("sample bootstrap:", err)) : Promise.resolve();
+  ready
+    .then(() => backfillSeverity())
+    .then((n) => n && console.log(`Priority: rated ${n} existing case${n > 1 ? "s" : ""}`))
+    .catch((err) => console.error("priority backfill:", err));
 });
 
 // Reminder / escalation timers on the demo clock.

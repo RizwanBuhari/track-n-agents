@@ -4,7 +4,7 @@ import { api, useLive } from '../api'
 import DraftCard from '../components/DraftCard'
 import { Icon } from '../components/icons'
 import PageLoader from '../components/PageLoader'
-import { Empty, PageHeader, Panel, Problem } from '../components/ui'
+import { Empty, PageHeader, Panel, Priority, Problem } from '../components/ui'
 
 function ClosureRow({ c, onDone }) {
   const [busy, setBusy] = useState(false)
@@ -12,7 +12,7 @@ function ClosureRow({ c, onDone }) {
   return (
     <div className="closure-row">
       <div>
-        <Link to={`/cases/${c.caseId}`} className="table-link">{c.caseId}</Link> · AWB {c.awbNo} <Problem type={c.problemType} />
+        <Link to={`/cases/${c.caseId}`} className="table-link">{c.caseId}</Link> · AWB {c.awbNo} <Priority p={c.priority} compact /> <Problem type={c.problemType} />
         <div className="text-muted">{c.summary}</div>
         {error && <p className="error">{error}</p>}
       </div>

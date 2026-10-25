@@ -6,6 +6,7 @@
 import { chatJson, LlmError } from "../lib/llm.ts";
 import { assertReadOnly, runSql } from "../lib/zetaris.ts";
 import { caseFacts, getCase, listCaseIds, OPEN_STATUSES } from "../state/caseState.ts";
+import { priorityOf } from "./priority.ts";
 
 const SYSTEM = `You are the Track-N assistant for an air freight operations team. Answer from the context only.
 - Cite sources in square brackets: evidence ids like [TN-0001-E02], case ids like [TN-0001], or [query] for the lookup result.
@@ -26,8 +27,10 @@ export async function ask(question: string, focus?: { caseId?: string; awb?: str
       context.push(`[${id}] AWB ${c.awbNo} ${c.title}: ${c.status}`);
       continue;
     }
+    const p = priorityOf(caseFacts(id)!);
     context.push(
       `[${id}] AWB ${c.awbNo} - ${c.title} - status ${c.status}. ${c.summary}`,
+      `  Priority: ${p.level} (severity ${p.severity}/5, urgency ${p.urgency}/5). ${p.reasons.join("; ")}`,
       `  Explanation: ${c.explanation}`,
       `  Next action: ${c.nextAction} (waiting on ${c.awaitingRole})`,
       ...c.evidence.map((e) => `  [${e.id}] ${e.source} ${e.recordId}: ${e.claim}`),
