@@ -73,7 +73,17 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 function crossCheck(fields: ShipmentFields, text: string, flagged: Set<string>, notes: string[]) {
   if (!canonicalAwb(fields.awbNumber)) {
     flagged.add("awbNumber");
-    notes.push("AWB number is not 11 digits.");
+    // Often the house AWB (forwarder reference) was picked. Look for a master AWB in the
+    // text: 3-digit airline prefix, optional airport code, 8-digit serial, valid check digit.
+    const master = [...text.toUpperCase().matchAll(/\b(\d{3})[\s-]*(?:[A-Z]{3}[\s-]*)?(\d{4}\s?\d{4})\b/g)]
+      .map((x) => `${x[1]}-${x[2].replace(/\s/g, "")}`)
+      .find((candidate) => awbCheckDigitValid(candidate));
+    if (master) {
+      notes.push(`"${fields.awbNumber || "blank"}" is not an 11-digit master AWB (it may be the house AWB). Suggested the master AWB ${master} found on the document: please confirm.`);
+      fields.awbNumber = master;
+    } else {
+      notes.push("AWB number is not 11 digits.");
+    }
   } else if (!awbCheckDigitValid(fields.awbNumber)) {
     flagged.add("awbNumber");
     notes.push("AWB check digit fails: probably a misread digit.");
@@ -96,6 +106,12 @@ function crossCheck(fields: ShipmentFields, text: string, flagged: Set<string>, 
     } else {
       flagged.add(k);
     }
+  }
+  // Numeric dates like 07/08/2026 can be day/month or month/day: never trust either reading silently.
+  const slash = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  if (slash && Number(slash[1]) <= 12 && Number(slash[2]) <= 12 && slash[1] !== slash[2]) {
+    flagged.add("flightDate");
+    notes.push(`The document's date ${slash[0]} could be day/month or month/day: check the flight date.`);
   }
   // IATA "Requested Flight/Date" is printed like DW512/10OCT26: parse it ourselves and correct the model.
   const m = text.toUpperCase().match(/\b([A-Z0-9]{2})\s?(\d{1,4})\s*\/\s*(\d{2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2})\b/);
