@@ -3,7 +3,7 @@
 // update the same row instead of creating a second shipment.
 
 import { ops } from "../lib/db.ts";
-import { canonicalAwb } from "../lib/refs.ts";
+import { awbCheckDigitValid, canonicalAwb } from "../lib/refs.ts";
 
 export type ShipmentFields = {
   awbNumber: string;
@@ -25,9 +25,34 @@ export type ShipmentFields = {
   invoiceRef: string;
 };
 
+/**
+ * Fields a shipment cannot be tracked or investigated without. The rest
+ * (flight, agent, HS code, value, invoice reference...) may be blank when
+ * the document does not show them. The Upload page applies the same rules.
+ */
+export function missingRequired(f: Partial<ShipmentFields>): string[] {
+  const problems: string[] = [];
+  const blank = (v: unknown) => v === null || v === undefined || String(v).trim() === "";
+  if (!canonicalAwb(f.awbNumber)) problems.push("AWB number (11 digits)");
+  else if (!awbCheckDigitValid(f.awbNumber)) problems.push("AWB number (check digit fails: re-check the number)");
+  if (blank(f.carrier)) problems.push("carrier");
+  for (const [k, label] of [["origin", "origin"], ["destination", "destination"]] as const) {
+    if (!/^[A-Z]{3}$/.test(String(f[k] ?? "").trim().toUpperCase())) problems.push(`${label} (3-letter airport code)`);
+  }
+  if (blank(f.shipper)) problems.push("shipper");
+  if (blank(f.consignee)) problems.push("consignee");
+  if (blank(f.cargoDescription)) problems.push("goods");
+  if (!(Number(f.pieces) > 0) || !Number.isInteger(Number(f.pieces))) problems.push("pieces (whole number)");
+  if (!(Number(f.weightKg) > 0)) problems.push("gross weight (kg)");
+  if (!blank(f.flightDate) && !/^\d{4}-\d{2}-\d{2}$/.test(String(f.flightDate))) problems.push("flight date (YYYY-MM-DD, or leave blank)");
+  return problems;
+}
+
 export async function confirmShipment(f: ShipmentFields, owner: string, sourceFile: string): Promise<{ awbNo: string; created: boolean }> {
-  const awbNo = canonicalAwb(f.awbNumber);
-  if (!awbNo) throw new Error(`"${f.awbNumber}" is not an 11-digit air waybill number`);
+  const missing = missingRequired(f);
+  if (missing.length) throw new Error(`Please complete before confirming: ${missing.join(", ")}`);
+  const awbNo = canonicalAwb(f.awbNumber)!;
+  f = { ...f, origin: f.origin.trim().toUpperCase(), destination: f.destination.trim().toUpperCase() };
   const existing = await ops.query("SELECT 1 FROM shipments WHERE awb_no = $1", [awbNo]);
   await ops.query(
     `INSERT INTO shipments (awb_no, carrier, origin, destination, flight_no, flight_date, shipper, consignee, agent, goods, pieces,

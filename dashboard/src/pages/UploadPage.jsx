@@ -24,6 +24,37 @@ const FIELDS = [
   ['invoiceRef', 'Invoice named on the AWB'],
 ]
 
+// Same rules as the backend (services/shipments.ts): a shipment cannot be
+// tracked or investigated without these. Other fields may stay blank.
+const blank = (v) => v === null || v === undefined || String(v).trim() === ''
+const awbDigits = (v) => String(v ?? '').replace(/\D/g, '')
+const iata = (v) => /^[A-Z]{3}$/.test(String(v ?? '').trim().toUpperCase())
+const REQUIRED = {
+  awbNumber: (v) => {
+    const d = awbDigits(v)
+    if (d.length !== 11) return 'needs 11 digits'
+    return Number(d.slice(3, 10)) % 7 === Number(d[10]) ? null : 'check digit fails: re-check the number'
+  },
+  carrier: (v) => (blank(v) ? 'required' : null),
+  origin: (v) => (iata(v) ? null : '3-letter airport code'),
+  destination: (v) => (iata(v) ? null : '3-letter airport code'),
+  shipper: (v) => (blank(v) ? 'required' : null),
+  consignee: (v) => (blank(v) ? 'required' : null),
+  cargoDescription: (v) => (blank(v) ? 'required' : null),
+  pieces: (v) => (Number(v) > 0 && Number.isInteger(Number(v)) ? null : 'whole number above 0'),
+  weightKg: (v) => (Number(v) > 0 ? null : 'number above 0'),
+}
+const FORMAT = { flightDate: (v) => (blank(v) || /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? null : 'YYYY-MM-DD, or leave blank') }
+
+function problemsIn(fields) {
+  const out = {}
+  for (const [k, check] of Object.entries({ ...REQUIRED, ...FORMAT })) {
+    const p = check(fields[k])
+    if (p) out[k] = p
+  }
+  return out
+}
+
 export default function UploadPage() {
   const [file, setFile] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -67,6 +98,8 @@ export default function UploadPage() {
   }
 
   const flagged = new Set(result?.extraction.flaggedFields ?? [])
+  const problems = fields ? problemsIn(fields) : {}
+  const missing = FIELDS.filter(([k]) => problems[k])
 
   return (
     <div className="reveal">
@@ -100,17 +133,24 @@ export default function UploadPage() {
             {flagged.size > 0 && <p className="text-muted small">{flagged.size} field{flagged.size === 1 ? '' : 's'} flagged for a second look.</p>}
             <div className="form-grid">
               {FIELDS.map(([key, label]) => (
-                <label key={key} className={flagged.has(key) ? 'field-flagged' : ''}>
+                <label key={key} className={problems[key] ? 'field-missing' : flagged.has(key) ? 'field-flagged' : ''}>
                   <span className="field-label-row">
-                    {flagged.has(key) && <span className="field-flag-icon">{Icon.alert}</span>}
+                    {flagged.has(key) && !problems[key] && <span className="field-flag-icon">{Icon.alert}</span>}
                     {label}
+                    {REQUIRED[key] && <span className="field-required" title="Required">*</span>}
                   </span>
                   <input value={fields[key] ?? ''} onChange={(e) => setFields({ ...fields, [key]: e.target.value })} />
+                  {problems[key] && <span className="field-problem">{problems[key]}</span>}
                 </label>
               ))}
             </div>
+            {missing.length > 0 && (
+              <p className="error" style={{ marginTop: 16 }}>
+                Complete these before confirming: {missing.map(([, label]) => label).join(', ')}. Fields marked * are needed to track the shipment; the rest can stay blank if the document doesn't show them.
+              </p>
+            )}
             <div className="row-actions" style={{ marginTop: 18 }}>
-              <button className="btn-primary" onClick={confirm} disabled={busy || !fields.awbNumber}>
+              <button className="btn-primary" onClick={confirm} disabled={busy || missing.length > 0} title={missing.length ? 'Complete the required fields first' : undefined}>
                 {busy ? <span className="spinner spinner-light" /> : Icon.check} Confirm and start tracking
               </button>
               <button className="btn-outline" onClick={() => { setResult(null); setFields(null) }} disabled={busy}>Upload another</button>
