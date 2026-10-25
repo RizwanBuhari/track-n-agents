@@ -29,6 +29,27 @@ export function Priority({ p, compact }) {
   )
 }
 
+// Repeat problems across cases: who, how often, which cases, and what Planning now does about it.
+export function PatternList({ patterns }) {
+  return (
+    <ul className="pattern-list">
+      {patterns.map((p) => (
+        <li key={p.id}>
+          <span className="pattern-head">
+            <span className={`badge tone-${p.tone}`}>{p.kind.replace(/_/g, ' ')}</span>
+            <span className="pattern-title">{p.title}</span>
+          </span>
+          <span className="pattern-detail">{p.detail}</span>
+          <span className="pattern-cases">
+            {p.cases.map((id) => <Link key={id} to={`/cases/${id}`} className="ev-ref">{id}</Link>)}
+          </span>
+          <span className="pattern-advice"><strong>Planning now:</strong> {p.advice}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function ReplyType({ type }) {
   if (!type) return null
   return <span className={`badge tone-${REPLY_TONE[type] ?? 'neutral'}`}>{type.replace(/_/g, ' ').toLowerCase()}</span>

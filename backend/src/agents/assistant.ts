@@ -6,6 +6,7 @@
 import { chatJson, LlmError } from "../lib/llm.ts";
 import { assertReadOnly, runSql } from "../lib/zetaris.ts";
 import { caseFacts, getCase, listCaseIds, OPEN_STATUSES } from "../state/caseState.ts";
+import { detectPatterns } from "./patterns.ts";
 import { priorityOf } from "./priority.ts";
 
 const SYSTEM = `You are the Track-N assistant for an air freight operations team. Answer from the context only.
@@ -39,6 +40,8 @@ export async function ask(question: string, focus?: { caseId?: string; awb?: str
     );
   }
   if (!context.length) context.push("No cases match. The shipment may be clean (no case opened) or not uploaded yet.");
+  const patterns = await detectPatterns().catch(() => []);
+  if (patterns.length) context.push("Patterns across cases:", ...patterns.map((p) => `  ${p.title}: ${p.detail} Cases ${p.cases.join(", ")}. Advice: ${p.advice}`));
 
   try {
     let query: string | undefined;
