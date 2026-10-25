@@ -7,7 +7,9 @@ import PageLoader from '../components/PageLoader'
 import { PageHeader, Panel } from '../components/ui'
 import { when } from '../utils/format'
 
-const Ok = ({ ok }) => <span className={`badge tone-${ok ? 'good' : 'alert'}`}><span className="badge-dot" />{ok ? 'connected' : 'unavailable'}</span>
+const Ok = ({ ok, sample }) => sample
+  ? <span className="badge tone-warn"><span className="badge-dot" />sample mode</span>
+  : <span className={`badge tone-${ok ? 'good' : 'alert'}`}><span className="badge-dot" />{ok ? 'connected' : 'unavailable'}</span>
 
 export default function SystemPage() {
   const { data, reload } = useLive(() => api.get('/integrations'))
@@ -29,11 +31,16 @@ export default function SystemPage() {
   return (
     <div className="reveal">
       <PageHeader icon={Icon.layers} tone="brand" title="System" hint="Live status of the data layer (Zetaris), the shared state engine (Meterless World Model) and the AI provider (Meterless Nightshift with NVIDIA Nemotron)." />
+      {data.mode === 'sample' && (
+        <p className="notice-warn" style={{ marginTop: 0 }}>{Icon.alert}<span>
+          <strong>Sample mode.</strong> Nothing here needs Docker, Zetaris, the databases or Nightshift. The agents' SQL runs against an embedded Postgres seeded with the same data, and every model call takes the agent's rule-based path (rule-based findings, template emails, replies read by rules). Verification, the approvals and the Meterless World Model work exactly as in live mode. Live mode (<code>npm run dev</code>) uses Zetaris and NVIDIA Nemotron through Nightshift.
+        </span></p>
+      )}
       <div className="panel-row">
-        <Panel icon={Icon.database} tone="info" title="Zetaris: four sources, one SQL access point" actions={<Ok ok={z.ok} />}>
+        <Panel icon={Icon.database} tone="info" title="Zetaris: four sources, one SQL access point" actions={<Ok ok={z.ok} sample={z.sample} />}>
           {z.ok ? (
             <>
-              <p className="text-muted small">One live query across Postgres, MySQL and two REST APIs took {z.ms} ms.</p>
+              <p className="text-muted small">{z.sample ? `Sample mode: the same query against the embedded Postgres took ${z.ms} ms.` : `One live query across Postgres, MySQL and two REST APIs took ${z.ms} ms.`}</p>
               <dl className="kv-list">
                 {z.sources.map((s) => <div key={s.source}><dt><code>{s.source}</code></dt><dd>{s.records} records</dd></div>)}
               </dl>
@@ -41,7 +48,7 @@ export default function SystemPage() {
           ) : <p className="error">{z.error}</p>}
         </Panel>
 
-        <Panel icon={Icon.cpu} tone="warn" title="Meterless Nightshift + NVIDIA Nemotron" actions={<Ok ok={m.ok} />}>
+        <Panel icon={Icon.cpu} tone="warn" title="Meterless Nightshift + NVIDIA Nemotron" actions={<Ok ok={m.ok} sample={m.sample} />}>
           {m.ok ? (
             <dl className="kv-list">
               <div><dt>Runtime</dt><dd><code>{m.url}</code></dd></div>

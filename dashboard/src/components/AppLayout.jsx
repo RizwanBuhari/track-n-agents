@@ -20,16 +20,28 @@ const NAV_ITEMS = [
 // Small health indicator; the full integration details live at /system.
 function SystemStatus() {
   const [ok, setOk] = useState(null)
+  const [sample, setSample] = useState(false)
   useEffect(() => {
     const check = () =>
       api
         .get('/integrations')
-        .then((d) => setOk(d.zetaris.ok && d.meterless.ok))
+        .then((d) => {
+          setSample(d.mode === 'sample')
+          setOk(d.zetaris.ok && d.meterless.ok)
+        })
         .catch(() => setOk(false))
     check()
     const t = setInterval(check, 60000)
     return () => clearInterval(t)
   }, [])
+  if (sample) {
+    return (
+      <NavLink to="/system" className="sys-status sys-sample" title="Sample mode: no Zetaris, databases or Nightshift. See System for details.">
+        <span className="sys-dot" />
+        Sample mode: no live services
+      </NavLink>
+    )
+  }
   return (
     <NavLink to="/system" className={`sys-status sys-${ok === null ? 'wait' : ok ? 'ok' : 'down'}`} title="Integration status">
       <span className="sys-dot" />

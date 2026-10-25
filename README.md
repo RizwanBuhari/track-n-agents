@@ -111,6 +111,8 @@ against an answer sheet the agents never read:
   every problem type and trap (partial replies, premature release claim, wrong
   document, duplicate, unknown sender, hidden instructions, reminder timer,
   two-stage closing, human closure).
+- [eval/scenario-results-sample.md](eval/scenario-results-sample.md): the same
+  suite in sample mode (no Zetaris or Nightshift; rule-based agent paths).
 
 ---
 
@@ -128,9 +130,11 @@ track-n/
 │   │   ├── sim/             simulated carrier API, customs portal and reply scenarios
 │   │   ├── lib/             Zetaris client, Meterless client, traces, demo clock, refs
 │   │   ├── routes/          REST API and server-sent events
+│   │   ├── sample/          sample mode: embedded Postgres stand-in and start-up loader
 │   │   └── server.ts
+│   ├── sample/shipments.json      the 8 confirmed demo shipments used by sample mode
 │   └── scripts/             setupZetaris, loadDemoShipments, resetDemo, conformance,
-│                            evaluate, runScenarios
+│                            evaluate, runScenarios, sample, sampleReset
 ├── dashboard/               React + Vite
 ├── infra/                   docker compose for the Postgres and MySQL sources + seed SQL
 ├── demo-data/cases/         8 fictional demo shipments (AWB, invoice, packing list, ...)
@@ -138,6 +142,37 @@ track-n/
 ├── docs/                    sponsor technology, demo script
 └── .env.example
 ```
+
+---
+
+## Quick look: sample mode (no setup)
+
+To see Track-N work without Docker, Zetaris, the databases, Nightshift or a `.env`
+file, you only need Node.js 22+:
+
+```bash
+cd backend && npm install && npm run sample     # http://localhost:4100
+cd dashboard && npm install && npm run dev      # second terminal: http://localhost:5173
+```
+
+The 8 demo shipments are loaded and investigated at start-up; cases appear on the
+dashboard within seconds. The top-right indicator reads **Sample mode: no live services**.
+
+| | Live mode (`npm run dev`) | Sample mode (`npm run sample`) |
+|---|---|---|
+| Agent reads | Zetaris across Postgres, MySQL and two REST APIs | The same SQL against an embedded Postgres (PGlite) seeded from `infra/` |
+| Writes | Postgres and MySQL | The same embedded Postgres |
+| Models | NVIDIA Nemotron through Meterless Nightshift | None: every agent takes its rule-based path |
+| Meterless World Model, Verification, approvals, timers, simulator | Same | Same |
+
+What you give up in sample mode: findings are explained by the screening rules
+rather than Nemotron, emails are drafted from the procedure template, replies are
+read by rules, the chat assistant is unavailable, and a newly uploaded AWB has to
+be typed by hand. Verification still checks the records, and a person still
+approves every email and closure. The full scenario suite passes in sample mode
+too: [eval/scenario-results-sample.md](eval/scenario-results-sample.md).
+Sample state is kept in `backend/data/sample/` apart from the live demo; stop the
+backend and run `npm run sample:reset` to start over.
 
 ---
 
@@ -215,6 +250,9 @@ npm run scenarios           # end-to-end behaviour -> eval/scenario-results.md
 
 Both need a fresh demo state: stop the backend, `npm run reset -- --shipments`,
 start it again, `npm run load:demo -- --all --no-investigate` (the tests start the investigations themselves).
+For the scenarios in sample mode: stop the backend, `npm run sample:reset`,
+`npm run sample -- --no-investigate`, then `npm run scenarios` (writes
+`eval/scenario-results-sample.md`).
 
 ---
 

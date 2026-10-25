@@ -13,9 +13,12 @@
     "scenarios": "tsx scripts/runScenarios.ts",
     "reset": "tsx scripts/resetDemo.ts",
     "load:demo": "tsx scripts/loadDemoShipments.ts",
-    "doctor": "tsx scripts/doctor.ts"
+    "doctor": "tsx scripts/doctor.ts",
+    "sample": "tsx scripts/sample.ts",
+    "sample:reset": "tsx scripts/sampleReset.ts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "cors": "^2.8.6",
     "dotenv": "^18.0.9",
     "express": "^5.3.0",
