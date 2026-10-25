@@ -93,7 +93,7 @@ pieces, not changing the system:
 |---|---|
 | ![Overview](docs/screenshots/overview.png) **Overview**: open cases, what waits for a person, live agent activity | ![Case](docs/screenshots/case-loop.png) **Case**: the finding with evidence, and the resolution loop with every check |
 | ![Trace](docs/screenshots/case-trace.png) **Agent trace**: every Zetaris query and Nemotron call, with the model that answered | ![Shipment](docs/screenshots/shipment-sources.png) **Shipment**: related records from every source, labelled with their source |
-| ![Upload](docs/screenshots/upload-required-fields.png) **Upload**: a scanned AWB the system cannot read: required fields must be filled before tracking starts | ![System](docs/screenshots/system.png) **System**: Zetaris, Nightshift/Nemotron and the World Model, live |
+| ![Upload](docs/screenshots/upload-extraction.png) **Upload AWB**: fields extracted automatically by NVIDIA Nemotron, shown beside the document for a person to check and confirm | ![System](docs/screenshots/system.png) **System**: Zetaris, Nightshift/Nemotron and the World Model, live |
 
 ---
 
