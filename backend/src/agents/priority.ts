@@ -9,11 +9,13 @@ import { clock } from "../lib/clock.ts";
 import { chatJson, LlmError } from "../lib/llm.ts";
 import { asAgent, record, withRun } from "../lib/trace.ts";
 import { getShipment } from "../services/shipments.ts";
+import { customsFor } from "./sources.ts";
 import { caseFacts, listCaseIds, setFacts, type CaseFacts } from "../state/caseState.ts";
 
 export type Priority = { score: number; level: "Critical" | "High" | "Medium" | "Low"; severity: number; urgency: number; reasons: string[] };
 
-// Problems that keep the goods on a customs hold start higher than delays and data mismatches.
+// Typical severity when the customs status is unknown. When the customs record is
+// available, whether customs actually holds the goods decides the base instead.
 const BASE_SEVERITY: Record<string, number> = {
   MISSING_INVOICE: 4,
   INVOICE_REF_MISMATCH: 4,
@@ -29,10 +31,11 @@ const HIGH_VALUE = 50_000;
 
 type ShipmentRow = { goods?: string | null; declared_value?: string | number | null; currency?: string | null; origin?: string | null; destination?: string | null } | null;
 
-export function severityByRules(problemType: string, shipment: ShipmentRow): { severity: number; reason: string } {
+export function severityByRules(problemType: string, shipment: ShipmentRow, customsHeld: boolean | null = null): { severity: number; reason: string } {
   const reasons: string[] = [];
-  let severity = BASE_SEVERITY[problemType] ?? 3;
-  reasons.push(severity >= 4 ? "the goods are held at customs until this is fixed" : "the problem delays the shipment but does not hold it at customs");
+  let severity = customsHeld === null ? BASE_SEVERITY[problemType] ?? 3 : customsHeld ? 4 : 3;
+  const held = customsHeld ?? severity >= 4;
+  reasons.push(held ? `the goods are held at customs until this is fixed${customsHeld === null ? "" : " (customs record)"}` : `the problem delays the shipment but does not hold it at customs${customsHeld === null ? "" : " (customs record)"}`);
   if (shipment?.goods && SENSITIVE_GOODS.test(shipment.goods)) {
     severity += 1;
     reasons.push(`the goods (${shipment.goods.toLowerCase()}) are perishable or medical`);
@@ -57,6 +60,15 @@ export async function assessSeverity(caseId: string): Promise<number> {
   const f = caseFacts(caseId);
   if (!f) throw new Error(`Unknown case ${caseId}`);
   const shipment: ShipmentRow = await getShipment(f.awbNo);
+  // The customs record (through Zetaris) says whether the goods are actually held.
+  let customs: { status: string } | null = null;
+  try {
+    const row = (await customsFor(f.awbNo))[0]?.row;
+    customs = row ? { status: String(row.status) } : null;
+  } catch {
+    customs = null;
+  }
+  const customsHeld = customs ? /^held/i.test(customs.status) : null;
   let severity: number;
   let reason: string;
   let method: string;
@@ -70,6 +82,7 @@ export async function assessSeverity(caseId: string): Promise<number> {
         `Summary: ${f.summary}`,
         f.explanation ? `Explanation: ${f.explanation.replace(/\[[A-Z0-9-]+\]/g, "")}` : "",
         shipment ? `Shipment: ${shipment.goods ?? "goods not stated"}, declared value ${shipment.declared_value ?? "?"} ${shipment.currency ?? ""}, ${shipment.origin ?? "?"} to ${shipment.destination ?? "?"}.` : "",
+        `Customs record: ${customs ? customs.status : "no customs entry"}.`,
       ].filter(Boolean).join("\n"),
       maxTokens: 300,
       validate: (v) => (!Number.isInteger(v.severity) || v.severity < 1 || v.severity > 5 ? "severity must be an integer from 1 to 5" : !v.reason ? "give a reason" : null),
@@ -79,7 +92,7 @@ export async function assessSeverity(caseId: string): Promise<number> {
     method = "model";
   } catch (err) {
     if (!(err instanceof LlmError)) throw err;
-    ({ severity, reason } = severityByRules(f.problemType, shipment));
+    ({ severity, reason } = severityByRules(f.problemType, shipment, customsHeld));
     method = "rules";
     record("decision", `No model to rate severity (${(err as Error).message.slice(0, 100)}); rated by rules`);
   }
