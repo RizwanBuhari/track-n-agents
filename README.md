@@ -85,6 +85,33 @@ where it does. Cases that existed before ranking was added are rated once at
 start-up, and any case can be re-rated from its page.
 (`backend/src/agents/priority.ts`)
 
+### Critical cases escalate faster
+
+Priority changes how the agents act, not just the order cases are listed in.
+A request or follow-up sent on a High case runs its reminder and escalation
+timers at 75% of the procedure times; on a Critical case, at 50%. When a case
+rises to Critical, the coordinator flags it, halves the time left on its
+timers (they only ever move earlier), and drafts a notice to the operations
+manager, which a person approves like every other email. The dashboard shows
+a live alert, and the case appears under "Critical alerts" on the Overview.
+The notice only informs: it does not change the case's status or pause its
+reminders. (`checkCritical` in `backend/src/agents/coordinator.ts`)
+
+### Patterns across cases
+
+Each case is worked on its own, so `backend/src/agents/patterns.ts` looks
+across all of them for the same party causing the same trouble again: claims
+the records did not back (including resolutions Verification rejected),
+vague replies, wrong documents, no reply until reminded, and unknown senders.
+It also looks for repeat problems on one carrier or at one destination. It
+reads the shared case history and, through Zetaris, the documents and
+invoices set aside as misdirected in the systems of record. A pattern needs
+at least two occurrences in at least two cases. Each pattern names its cases
+and evidence, and carries advice that Planning applies when it next writes to
+that party. For example, it asks a broker whose release claims failed before
+for the customs record entry up front. Patterns appear on the Overview, on
+each affected case and in the chat assistant.
+
 ### Emails in the recipient's language
 
 Each draft waiting for approval suggests a language for its recipient. The

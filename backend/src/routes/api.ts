@@ -7,6 +7,7 @@ import multer from "multer";
 import { backendRoot, config } from "../config.ts";
 import { ask } from "../agents/assistant.ts";
 import { translateDraft } from "../agents/communication.ts";
+import { detectPatterns, patternsFor } from "../agents/patterns.ts";
 import { assessSeverity, priorityOf } from "../agents/priority.ts";
 import { suggestLanguages } from "../lib/locale.ts";
 import { approveClosure, approveDraft, investigateShipment, managerDecision, pendingApprovals, receiveEmail, reinvestigate, rejectDraft, tick } from "../agents/coordinator.ts";
@@ -41,7 +42,7 @@ function background(label: string, p: Promise<unknown>) {
 
 const caseSummary = (id: string) => {
   const f = caseFacts(id)!;
-  return { caseId: id, status: f.status, problemType: f.problemType, title: f.title, awbNo: f.awbNo, owner: f.owner, summary: f.summary, nextAction: f.nextAction, awaitingRole: f.awaitingRole, openedAt: f.openedAt, closedAt: f.closedAt, escalated: f.escalated, flags: f.flags, reminders: f.reminders, sendBacks: f.sendBacks, wrongDocs: f.wrongDocs, nextReminderAt: f.nextReminderAt, escalateAt: f.escalateAt, priority: priorityOf(f), severityMethod: f.severityMethod ?? null };
+  return { caseId: id, status: f.status, problemType: f.problemType, title: f.title, awbNo: f.awbNo, owner: f.owner, summary: f.summary, nextAction: f.nextAction, awaitingRole: f.awaitingRole, openedAt: f.openedAt, closedAt: f.closedAt, escalated: f.escalated, flags: f.flags, reminders: f.reminders, sendBacks: f.sendBacks, wrongDocs: f.wrongDocs, nextReminderAt: f.nextReminderAt, escalateAt: f.escalateAt, priority: priorityOf(f), severityMethod: f.severityMethod ?? null, timerFactor: f.timerFactor ?? 1, criticalAlertedAt: f.criticalAlertedAt ?? null, criticalReasons: f.criticalReasons ?? [] };
 };
 
 /** Open cases by priority (highest first), then closed cases newest first. */
@@ -138,6 +139,17 @@ api.post("/cases/:id/manager", (req, res) => {
   background("manager", managerDecision(String(req.params.id), user(req), req.body?.decision, req.body?.note ?? ""));
   res.status(202).json({ ok: true });
 });
+
+// --------------------------------------------------------------- patterns
+
+api.get("/patterns", wrap(async (req, res) => {
+  const all = await detectPatterns();
+  if (!req.query.caseId) return res.json(all);
+  const f = caseFacts(String(req.query.caseId));
+  if (!f) return res.status(404).json({ error: "Not found" });
+  const parties = await partiesFor(f.awbNo);
+  res.json(patternsFor(all, parties.map((p) => p.email), String(req.query.caseId)));
+}));
 
 api.post("/cases/:id/priority", wrap(async (req, res) => {
   const id = String(req.params.id);

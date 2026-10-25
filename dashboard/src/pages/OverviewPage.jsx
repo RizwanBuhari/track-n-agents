@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom'
 import { api, useEvents, useLive } from '../api'
 import { Icon } from '../components/icons'
 import PageLoader from '../components/PageLoader'
-import { AgentChip, CaseStatus, Empty, Panel, Priority, Problem, Stat } from '../components/ui'
-import { OPEN, ago } from '../utils/format'
+import { AgentChip, CaseStatus, Empty, Panel, PatternList, Priority, Problem, Stat } from '../components/ui'
+import { OPEN, ago, when } from '../utils/format'
 
 export default function OverviewPage() {
   const { data } = useLive(async () => {
-    const [shipments, cases, approvals, runs] = await Promise.all([api.get('/shipments'), api.get('/cases'), api.get('/approvals'), api.get('/runs')])
-    return { shipments, cases, approvals, runs }
+    const [shipments, cases, approvals, runs, patterns] = await Promise.all([api.get('/shipments'), api.get('/cases'), api.get('/approvals'), api.get('/runs'), api.get('/patterns').catch(() => [])])
+    return { shipments, cases, approvals, runs, patterns }
   })
   const [steps, setSteps] = useState([])
   useEvents((type, step) => {
@@ -23,6 +23,7 @@ export default function OverviewPage() {
   const drafts = data.approvals.drafts
   const attention = data.cases.filter((c) => ['ESCALATED', 'STALLED'].includes(c.status) || c.flags?.length)
   const clean = data.shipments.filter((s) => s.cases.length === 0).length
+  const critical = open.filter((c) => c.criticalAlertedAt)
 
   return (
     <div className="reveal">
@@ -52,6 +53,38 @@ export default function OverviewPage() {
         <Stat icon={Icon.shield} tone="good" value={ready.length} label="Verified, ready to close" to="/approvals" />
         <Stat icon={Icon.zap} tone="alert" value={attention.length} label="Escalated or flagged" to="/cases" />
         <Stat icon={Icon.check} tone="good" value={resolved.length} label="Resolved" hint="closed by a person after verification" />
+      </div>
+
+      <div className="panel-row">
+        <Panel icon={Icon.bell} tone="alert" title="Critical alerts" count={critical.length} bodyClass="">
+          {critical.length === 0 ? (
+            <Empty good>No case is Critical right now.</Empty>
+          ) : (
+            <ul className="alert-list">
+              {critical.map((c) => (
+                <li key={c.caseId}>
+                  <span className="pattern-head">
+                    <Priority p={c.priority} />
+                    <Link to={`/cases/${c.caseId}`} className="table-link">{c.caseId}</Link>
+                    <span>AWB {c.awbNo}</span>
+                    <Problem type={c.problemType} />
+                    <span className="text-muted">raised {when(c.criticalAlertedAt)}</span>
+                  </span>
+                  <span className="pattern-detail">{(c.criticalReasons ?? []).slice(0, 2).join(' · ')}</span>
+                  <span className="pattern-advice">Timers at {Math.round((c.timerFactor ?? 1) * 100)}% · operations manager notified (notice needs approval before it is sent)</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        <Panel icon={Icon.layers} tone="warn" title="Patterns across cases" count={data.patterns.length} bodyClass="">
+          {data.patterns.length === 0 ? (
+            <Empty good>No repeat patterns yet. A pattern needs the same problem with the same party in at least two cases.</Empty>
+          ) : (
+            <PatternList patterns={data.patterns} />
+          )}
+        </Panel>
       </div>
 
       <div className="panel-row">

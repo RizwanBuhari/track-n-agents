@@ -127,6 +127,19 @@ code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.92em;
 .priority-reasons { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; }
 .btn-small { padding: 4px 10px; font-size: 12px; }
 
+/* ---------- Critical alerts / patterns ---------- */
+.alert-toasts { top: auto; bottom: 96px; }
+.alert-toasts .notif-toast { cursor: default; }
+.pattern-list, .alert-list { list-style: none; margin: 0; padding: 4px 18px 12px; }
+.pattern-list li, .alert-list li { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.pattern-list li:last-child, .alert-list li:last-child { border-bottom: none; }
+.pattern-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pattern-title { font-weight: 700; color: var(--ink); }
+.pattern-detail { color: var(--ink-soft); }
+.pattern-advice { color: var(--muted); font-size: 12.5px; }
+.pattern-cases { display: flex; flex-wrap: wrap; gap: 6px; }
+.timer-note { margin: 8px 0 0; font-size: 12.5px; color: #b42318; font-weight: 600; }
+
 /* ---------- Drafts / approvals ---------- */
 .draft-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; margin-top: 4px; border: 1px solid #f3d3bd; border-radius: 12px; background: #fffaf6; }
 .draft-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12.5px; color: var(--ink-soft); }

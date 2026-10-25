@@ -4,7 +4,7 @@ import { api, currentUserId, useLive } from '../api'
 import DraftCard from '../components/DraftCard'
 import { Icon } from '../components/icons'
 import PageLoader from '../components/PageLoader'
-import { AgentChip, CaseStatus, Evidence, Panel, Priority, Problem, ReplyType } from '../components/ui'
+import { AgentChip, CaseStatus, Evidence, Panel, PatternList, Priority, Problem, ReplyType } from '../components/ui'
 import { OPEN, PRIORITY_TONE, when } from '../utils/format'
 
 function loopEvents(c) {
@@ -41,6 +41,7 @@ function TraceView({ runId }) {
 export default function CaseDetailPage() {
   const { id } = useParams()
   const { data: c, error, reload } = useLive(() => api.get(`/cases/${id}`), [id])
+  const { data: patterns } = useLive(() => api.get(`/patterns?caseId=${id}`).catch(() => []), [id])
   const [openRun, setOpenRun] = useState(null)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -202,6 +203,12 @@ export default function CaseDetailPage() {
             </ul>
           </Panel>
 
+          {patterns?.length > 0 && (
+            <Panel icon={Icon.layers} tone="warn" title="Known patterns with these parties" count={patterns.length} bodyClass="">
+              <PatternList patterns={patterns} />
+            </Panel>
+          )}
+
           <Panel icon={Icon.clock} tone="warn" title="Timers and limits" actions={<span className="badge tone-neutral">Team demo rules</span>}>
             <dl className="kv-list">
               <div><dt>Request first sent</dt><dd>{when(c.requestSentAt)}</dd></div>
@@ -211,6 +218,9 @@ export default function CaseDetailPage() {
               <div><dt>Wrong documents</dt><dd>{c.wrongDocs} / 2</dd></div>
               <div><dt>Sent back by Verification</dt><dd>{c.sendBacks} / 3</dd></div>
             </dl>
+            {OPEN.includes(c.status) && (c.timerFactor ?? 1) < 1 && (
+              <p className="timer-note">Timers at {Math.round(c.timerFactor * 100)}% of the procedure times ({c.timerFactor <= 0.5 ? 'Critical' : 'High'} priority)</p>
+            )}
           </Panel>
 
           <Panel icon={Icon.users} tone="neutral" title="Waiting on (history)">

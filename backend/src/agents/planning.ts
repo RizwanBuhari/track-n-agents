@@ -8,6 +8,7 @@ import { ROLE_LABELS } from "../domain.ts";
 import { chatJson, LlmError } from "../lib/llm.ts";
 import { record } from "../lib/trace.ts";
 import { caseFacts, getCase, listPlans, savePlan, type Plan } from "../state/caseState.ts";
+import { detectPatterns, patternsFor } from "./patterns.ts";
 import { partiesFor, procedureFor, type Procedure } from "./sources.ts";
 
 export type PlanContext = {
@@ -21,7 +22,7 @@ Given a case, its operating procedure and what has happened so far, decide the O
 - "request": first request to the party who can fix it.
 - "follow_up": answer to a reply that was incomplete, vague, wrong or contradicted by our records; ask the party who can confirm the RESULT (usually the customs broker for anything clearance-related, the carrier for movement).
 - "escalate": only if the procedure cannot move forward without a manager.
-Rules: follow the procedure's recipients; never ask for or suggest an HS code; a reply claiming an action is not proof of the result; ask for specific documents and references; name the exact mistake when a wrong document arrived.
+Rules: follow the procedure's recipients; never ask for or suggest an HS code; a reply claiming an action is not proof of the result; ask for specific documents and references; name the exact mistake when a wrong document arrived; if the recipient has a known pattern from other cases, apply its advice in the ask.
 Return JSON: {"action": "request|follow_up|escalate", "toRole": "<one of the allowed roles>", "goal": "<what this step achieves>", "ask": "<what exactly we ask for, one or two sentences>", "proofNeeded": ["<evidence that will close the case>"], "reason": "<why this party and this ask, referring to the evidence>"}`;
 
 function fallbackPlan(proc: Procedure, ctx: PlanContext): Omit<Plan, "id" | "caseId" | "at"> {
@@ -40,6 +41,8 @@ export async function plan(caseId: string, ctx: PlanContext): Promise<{ plan: Pl
   const allowed = parties.filter((p) => p.role !== "operations");
   const previous = listPlans(caseId);
   const failedChecks = c.verifications.at(-1)?.checks.filter((k) => !k.passed).map((k) => `${k.name}: ${k.detail}`) ?? [];
+  // What other cases taught us about these parties.
+  const known = patternsFor(await detectPatterns(), allowed.map((p) => p.email));
 
   let proposal: Omit<Plan, "id" | "caseId" | "at">;
   try {
@@ -50,6 +53,7 @@ export async function plan(caseId: string, ctx: PlanContext): Promise<{ plan: Pl
       `Closing evidence: ${proc.closing_evidence}`,
       `Not enough: ${proc.not_enough}`,
       `Allowed roles: ${allowed.map((p) => `${p.role} (${p.name})`).join(", ")}`,
+      known.length ? `Known patterns with these parties (from other cases): ${known.map((p) => `${p.party!.role}: ${p.title} (${p.detail}) Advice: ${p.advice}`).join(" || ")}` : "",
       `Why we are planning now: ${ctx.reason} - ${ctx.detail}`,
       failedChecks.length ? `Verification failed checks: ${failedChecks.join(" | ")}` : "",
       previous.length ? `Previous plans: ${previous.map((p) => `${p.action} to ${p.toRole}: ${p.ask}`).join(" || ")}` : "",
@@ -77,20 +81,29 @@ export async function plan(caseId: string, ctx: PlanContext): Promise<{ plan: Pl
     if (!(err instanceof LlmError)) throw err;
     record("decision", `No valid model plan (${(err as Error).message.slice(0, 120)}); using the procedure default plan`);
     proposal = fallbackPlan(proc, ctx);
+    // Without a model, apply the known pattern's advice to the ask directly.
+    const email = allowed.find((p) => p.role === proposal.toRole)?.email;
+    for (const p of known.filter((k) => email && k.party!.email.toLowerCase() === email.toLowerCase())) {
+      proposal.ask = `${proposal.ask} ${p.advice}`;
+      proposal.reason = `${proposal.reason} Known pattern: ${p.title}.`;
+    }
   }
   if (ctx.reason !== "new_case" && previous.length) proposal.revisedBecause = ctx.detail;
 
   const recipient = proposal.action === "escalate"
     ? { role: "operations_manager", name: "Operations Manager", email: "ops.manager@example.com" }
     : allowed.find((p) => p.role === proposal.toRole)!;
+  for (const p of known.filter((k) => k.party!.email.toLowerCase() === recipient.email.toLowerCase())) {
+    record("decision", `Planning used a known pattern for ${recipient.name}: ${p.title} (${p.cases.join(", ")})`);
+  }
   const saved = await savePlan(caseId, proposal, "planning", recipient.email);
   record("decision", `Plan: ${saved.action} to ${ROLE_LABELS[saved.toRole] ?? saved.toRole} (${recipient.email}) - ${saved.ask}`, saved);
   return { plan: saved, recipient };
 }
 
-export function timersFor(proc: Procedure, sentAt: string, urgent = false) {
-  const f = urgent ? 0.5 : 1;
-  const at = (h: number) => new Date(new Date(sentAt).getTime() + h * f * 3_600_000).toISOString();
+/** Reminder and escalation times from the procedure; factor < 1 shortens them for high-priority cases. */
+export function timersFor(proc: Procedure, sentAt: string, factor = 1) {
+  const at = (h: number) => new Date(new Date(sentAt).getTime() + h * factor * 3_600_000).toISOString();
   return { firstReminderAt: at(proc.reminder1_hours), secondReminderAt: at(proc.reminder2_hours), escalateAt: at(proc.escalate_hours) };
 }
 
