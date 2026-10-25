@@ -1,0 +1,178 @@
+[
+  {
+    "sourceFile": "CASE-001_AWB.pdf",
+    "fields": {
+      "awbNumber": "901-44173021",
+      "carrier": "Desert Wing Cargo",
+      "origin": "PVG",
+      "destination": "DXB",
+      "flightNumber": "DW 512",
+      "flightDate": "2026-10-11",
+      "shipper": "Shenzhen Brightway Technology Co., Ltd.",
+      "consignee": "Orion Electronics FZE",
+      "agent": "Falcon Freight Forwarding LLC, Dubai",
+      "cargoDescription": "LAPTOP COMPUTERS (14-INCH), 200 UNITS",
+      "pieces": 40,
+      "weightKg": 420,
+      "chargeableWeightKg": 453.6,
+      "hsCode": "847130",
+      "declaredValue": 96000,
+      "currency": "USD",
+      "invoiceRef": "BWT-INV-26-0981"
+    }
+  },
+  {
+    "sourceFile": "CASE-002_AWB.pdf",
+    "fields": {
+      "awbNumber": "901-51288462",
+      "carrier": "Desert Wing Cargo",
+      "origin": "FRA",
+      "destination": "DXB",
+      "flightNumber": "DW 207",
+      "flightDate": "2026-10-09",
+      "shipper": "Rhine Precision Valves GmbH",
+      "consignee": "Blue Dune Trading LLC",
+      "agent": "Falcon Freight Forwarding LLC, Dubai",
+      "cargoDescription": "STAINLESS STEEL BALL VALVES, DN50, 96 PCS",
+      "pieces": 12,
+      "weightKg": 318.5,
+      "chargeableWeightKg": 344,
+      "hsCode": "848180",
+      "declaredValue": 41250,
+      "currency": "EUR",
+      "invoiceRef": "RPV-2026-4471"
+    }
+  },
+  {
+    "sourceFile": "CASE-003_AWB.pdf",
+    "fields": {
+      "awbNumber": "902-33904150",
+      "carrier": "Gulf Arrow Airlines",
+      "origin": "BOM",
+      "destination": "SHJ",
+      "flightNumber": "GA 418",
+      "flightDate": "2026-10-13",
+      "shipper": "Kaveri Textiles Pvt. Ltd.",
+      "consignee": "Al Noor Garments Trading LLC",
+      "agent": "Falcon Freight Forwarding LLC",
+      "cargoDescription": "WOVEN COTTON FABRIC ROLLS",
+      "pieces": 25,
+      "weightKg": 510,
+      "chargeableWeightKg": 550.8,
+      "hsCode": "520812",
+      "declaredValue": 18400,
+      "currency": "USD",
+      "invoiceRef": "KTL/EXP/26/312"
+    }
+  },
+  {
+    "sourceFile": "CASE-004_AWB.pdf",
+    "fields": {
+      "awbNumber": "901-60217791",
+      "carrier": "Desert Wing Cargo",
+      "origin": "IST",
+      "destination": "DXB",
+      "flightNumber": "DW 331",
+      "flightDate": "2026-10-07",
+      "shipper": "Bosphorus Medical Supplies A.S.",
+      "consignee": "Crescent Healthcare Distributors LLC",
+      "agent": "Falcon Freight Forwarding LLC, Dubai",
+      "cargoDescription": "DISPOSABLE NITRILE EXAMINATION GLOVES",
+      "pieces": 18,
+      "weightKg": 236,
+      "chargeableWeightKg": 254.9,
+      "hsCode": "401519",
+      "declaredValue": 12900,
+      "currency": "USD",
+      "invoiceRef": "BMS-26-1188"
+    }
+  },
+  {
+    "sourceFile": "CASE-005_AWB.pdf",
+    "fields": {
+      "awbNumber": "902-71844205",
+      "carrier": "Gulf Arrow Airlines",
+      "origin": "ICN",
+      "destination": "DXB",
+      "flightNumber": "GA 905",
+      "flightDate": "2026-10-12",
+      "shipper": "Hanbit Smart Devices Co.",
+      "consignee": "Falcon Retail LLC",
+      "agent": "Falcon Freight Forwarding LLC, Dubai",
+      "cargoDescription": "SMARTPHONES, 600 UNITS",
+      "pieces": 30,
+      "weightKg": 288,
+      "chargeableWeightKg": 311,
+      "hsCode": "851713",
+      "declaredValue": 150000,
+      "currency": "USD",
+      "invoiceRef": "HSD-EX-26-0457"
+    }
+  },
+  {
+    "sourceFile": "CASE-006_AWB.pdf",
+    "fields": {
+      "awbNumber": "901-28755311",
+      "carrier": "Desert Wing Cargo",
+      "origin": "MXP",
+      "destination": "DXB",
+      "flightNumber": "DW 118",
+      "flightDate": "2026-10-10",
+      "shipper": "Milano Forma Design S.r.l.",
+      "consignee": "Palm Interiors LLC",
+      "agent": "Falcon Freight Forwarding LLC, Dubai",
+      "cargoDescription": "UPHOLSTERED LOUNGE CHAIRS",
+      "pieces": 14,
+      "weightKg": 612,
+      "chargeableWeightKg": 661,
+      "hsCode": "940161",
+      "declaredValue": 33600,
+      "currency": "EUR",
+      "invoiceRef": "MFD-26-0712"
+    }
+  },
+  {
+    "sourceFile": "CASE-007_AWB.pdf",
+    "fields": {
+      "awbNumber": "902-83401765",
+      "carrier": "Gulf Arrow Airlines",
+      "origin": "MEL",
+      "destination": "DXB",
+      "flightNumber": "GA 640",
+      "flightDate": "2026-10-08",
+      "shipper": "Pacific Harvest Foods Pty Ltd",
+      "consignee": "Oasis Fresh Foodstuff Trading LLC",
+      "agent": "Falcon Freight Forwarding LLC, Dubai",
+      "cargoDescription": "DRIED FRUIT AND NUT MIX, 1 KG PACKS",
+      "pieces": 20,
+      "weightKg": 402,
+      "chargeableWeightKg": 434.2,
+      "hsCode": "081350",
+      "declaredValue": 21800,
+      "currency": "AUD",
+      "invoiceRef": "PHF-INV-88213"
+    }
+  },
+  {
+    "sourceFile": "CASE-008_AWB.pdf",
+    "fields": {
+      "awbNumber": "902-19588030",
+      "carrier": "Gulf Arrow Airlines",
+      "origin": "ARN",
+      "destination": "AUH",
+      "flightNumber": "GA 271",
+      "flightDate": "2026-10-06",
+      "shipper": "Nordvik Pumps AB",
+      "consignee": "Sahara Water Systems LLC",
+      "agent": "Falcon Freight Forwarding LLC",
+      "cargoDescription": "CENTRIFUGAL WATER PUMPS AND SPARE SEALS",
+      "pieces": 6,
+      "weightKg": 274,
+      "chargeableWeightKg": 295.9,
+      "hsCode": "841370",
+      "declaredValue": 27450,
+      "currency": "EUR",
+      "invoiceRef": "NVP-26-3390"
+    }
+  }
+]

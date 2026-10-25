@@ -1,6 +1,7 @@
 // Direct connections to the systems of record, used only for WRITES
 // (confirming a shipment, logging a sent email, the simulator delivering
-// a document). Agents read everything through Zetaris.
+// a document). Agents read everything through Zetaris. In sample mode both
+// go to the embedded Postgres instead (sample/sampleDb.ts).
 
 import { createHash } from "node:crypto";
 import pg from "pg";
@@ -10,8 +11,17 @@ import { config } from "../config.ts";
 // Keep DATE columns as plain "YYYY-MM-DD" strings (no timezone shift).
 pg.types.setTypeParser(1082, (value) => value);
 
-export const ops = new pg.Pool({ connectionString: config.opsDbUrl, max: 5 });
-export const finance = mysql.createPool({ uri: config.financeDbUrl, connectionLimit: 3, dateStrings: true });
+type OpsDb = { query(text: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number | null }>; end(): Promise<void> };
+type FinanceDb = { query(sql: string, params?: unknown[]): Promise<unknown>; end(): Promise<void> };
+
+const sample = () => import("../sample/sampleDb.ts");
+
+export const ops: OpsDb = config.sampleMode
+  ? { query: async (text, params) => (await sample()).opsQuery(text, params), end: async () => {} }
+  : new pg.Pool({ connectionString: config.opsDbUrl, max: 5 });
+export const finance: FinanceDb = config.sampleMode
+  ? { query: async (sql, params) => (await sample()).financeQuery(sql, params), end: async () => {} }
+  : mysql.createPool({ uri: config.financeDbUrl, connectionLimit: 3, dateStrings: true });
 
 export function contentHash(...parts: string[]): string {
   return createHash("md5").update(parts.map((p) => p.trim().toLowerCase().replace(/\s+/g, " ")).join("\n")).digest("hex");

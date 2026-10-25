@@ -29,6 +29,8 @@ export async function chat(opts: {
   maxTokens?: number;
   temperature?: number;
 }): Promise<ChatResult> {
+  // Sample mode never calls Nightshift: every caller has a rule-based path for this error.
+  if (config.sampleMode) throw new LlmError("sample mode: no model provider is used, so the rule-based path runs");
   const model =
     opts.model === "deep" ? config.meterless.deepModel :
     opts.model === "vision" ? config.meterless.visionModel :
@@ -127,6 +129,7 @@ export async function chatJson<T>(opts: {
 }
 
 export async function listModels(): Promise<string[]> {
+  if (config.sampleMode) return [];
   const response = await fetch(config.meterless.baseUrl.replace(/\/$/, "") + "/models", { headers: headers(), signal: AbortSignal.timeout(15_000) });
   if (response.status === 401) throw new LlmError("unauthorized");
   if (!response.ok) throw new LlmError(`offline (${response.status})`);

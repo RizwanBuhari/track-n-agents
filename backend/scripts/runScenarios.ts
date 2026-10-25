@@ -6,7 +6,9 @@
 //   npx tsx scripts/resetDemo.ts --shipments   (backend stopped)
 //   npm run dev  &&  npx tsx scripts/loadDemoShipments.ts --all --no-investigate
 //   npm run scenarios
-// Writes eval/scenario-results.md.
+// Writes eval/scenario-results.md. In sample mode (no services needed):
+//   npm run sample:reset  &&  npm run sample -- --no-investigate  &&  npm run scenarios
+// which writes eval/scenario-results-sample.md instead.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -206,10 +208,15 @@ scenario = "Clean shipment";
 }
 
 const passed = results.filter((r) => r.ok).length;
+// A sample-mode backend (npm run sample) gets its own results file, so it never overwrites the live run.
+const sample = (await get("/integrations")).mode === "sample";
+const outFile = sample ? "scenario-results-sample.md" : "scenario-results.md";
 const md = [
   "# Track-N end-to-end scenarios",
   "",
-  `Run ${new Date().toISOString()} against the live stack (Zetaris, Meterless World Model, Nightshift + Nemotron). Counterparties and the carrier/customs systems are simulated.`,
+  sample
+    ? `Run ${new Date().toISOString()} in sample mode (embedded Postgres instead of Zetaris and the databases; no Nightshift, so every agent used its rule-based path; Meterless World Model as in live mode). Counterparties and the carrier/customs systems are simulated.`
+    : `Run ${new Date().toISOString()} against the live stack (Zetaris, Meterless World Model, Nightshift + Nemotron). Counterparties and the carrier/customs systems are simulated.`,
   "",
   `**${passed}/${results.length} expectations met.**`,
   "",
@@ -217,5 +224,5 @@ const md = [
   "|---|---|---|---|",
   ...results.map((r) => `| ${r.scenario} | ${r.step} | ${r.ok ? "✓" : "✗"} | ${r.detail.replace(/\|/g, "/")} |`),
 ];
-fs.writeFileSync(path.join(repoRoot, "eval", "scenario-results.md"), md.join("\n") + "\n");
-console.log(`\n${passed}/${results.length} expectations met. Wrote eval/scenario-results.md`);
+fs.writeFileSync(path.join(repoRoot, "eval", outFile), md.join("\n") + "\n");
+console.log(`\n${passed}/${results.length} expectations met. Wrote eval/${outFile}`);

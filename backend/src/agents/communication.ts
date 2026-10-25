@@ -204,10 +204,28 @@ export async function readReply(caseId: string, mail: MailRow): Promise<ReplyRea
     claimedRefs = reply.claimedRefs ?? [];
   } catch (err) {
     if (!(err instanceof LlmError)) throw err;
-    meaning = "Could not classify automatically; treated as vague until a person reviews it.";
-    flags.push("Reply needs a person to read it (model unavailable)");
+    ({ replyType, meaning, claimedRefs } = readReplyByRules(mail.body, attachments));
+    record("decision", `No model to read the reply (${(err as Error).message.slice(0, 100)}); read by rules as ${replyType}`);
   }
   return { replyType, meaning, claimedRefs, attachments, senderRole: party?.role ?? null, flags };
+}
+
+/**
+ * Reads a reply without a model (sample mode, or Nightshift offline). Safe to get
+ * wrong: Verification still checks the systems of record and a person approves
+ * every closure, so a misread reply can only be sent back, never close a case.
+ */
+export function readReplyByRules(body: string, attachments: string[]): { replyType: ReplyType; meaning: string; claimedRefs: string[] } {
+  const t = body.toLowerCase();
+  const hedged = /\b(probably|maybe|perhaps|i think|guess|should be fine)\b/.test(t);
+  let replyType: ReplyType = "VAGUE";
+  if (/\b(says|said|told us|according to)\b/.test(t)) replyType = "CONFLICTING";
+  else if (/\b(departed|application (has been |was )?submitted|expected (issue|arrival)|estimated arrival)\b/.test(t)) replyType = "PROGRESS_UPDATE";
+  else if (!hedged && /\b(released|accepted|arrived|signed|confirms|matches|now shows)\b/.test(t)) replyType = "RESOLUTION_EVIDENCE";
+  else if (/\b(sent|submitted|changed|forwarded)\b/.test(t)) replyType = "PARTIAL";
+  else if (hedged) replyType = "UNSUBSTANTIATED";
+  const refs = [...`${body} ${attachments.join(" ")}`.matchAll(/\b(?:CLR|REL|AUH-REL|DXB-REL|POD|WT|REV|MOV|APP)-[A-Z0-9-]*\d[A-Z0-9-]*/gi)].map((m) => m[0]);
+  return { replyType, meaning: `Read by rules (no model): ${REPLY_TYPES[replyType as keyof typeof REPLY_TYPES]}`, claimedRefs: [...new Set(refs)] };
 }
 
 /** Which open case an inbound email belongs to: the [TN-xxxx] tag, else the AWB digits. */

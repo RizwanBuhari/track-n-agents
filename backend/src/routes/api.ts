@@ -222,7 +222,7 @@ api.post("/chat", wrap(async (req, res) => {
 // ---------------------------------------------------------- integrations
 
 api.get("/integrations", wrap(async (_req, res) => {
-  const out: Record<string, unknown> = {};
+  const out: Record<string, unknown> = { mode: config.sampleMode ? "sample" : "live" };
   try {
     const t0 = Date.now();
     const sources = await runSql(
@@ -234,11 +234,15 @@ api.get("/integrations", wrap(async (_req, res) => {
        UNION ALL SELECT 'trackn_customs.customs_entries', count(*) FROM trackn_customs.customs_entries`,
       { trace: false },
     );
-    out.zetaris = { ok: true, url: config.zetaris.restUrl, ms: Date.now() - t0, sources };
+    out.zetaris = config.sampleMode
+      ? { ok: true, sample: true, url: "embedded Postgres (sample mode)", ms: Date.now() - t0, sources }
+      : { ok: true, url: config.zetaris.restUrl, ms: Date.now() - t0, sources };
   } catch (err) {
     out.zetaris = { ok: false, error: (err as Error).message };
   }
-  try {
+  if (config.sampleMode) {
+    out.meterless = { ok: false, sample: true, error: "Not used in sample mode: the agents run their rule-based paths. Live mode serves every agent request with NVIDIA Nemotron through Nightshift." };
+  } else try {
     const models = await listModels();
     out.meterless = { ok: true, url: config.meterless.baseUrl, fastModel: config.meterless.fastModel, deepModel: config.meterless.deepModel, nemotronAvailable: models.filter((m) => m.includes("nemotron")) };
   } catch (err) {

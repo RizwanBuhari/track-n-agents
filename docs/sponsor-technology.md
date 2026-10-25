@@ -64,6 +64,17 @@ no HS code may be suggested, emails must name the AWB) and the model gets one
 correction round before a rule-based fallback takes over. Each trace step records
 the requested and the served model.
 
+## Sample mode (for running without the sponsor services)
+
+`npm run sample` runs Track-N with no Zetaris, databases or Nightshift, so anyone
+can see it work. It replaces only the three integration points: `runSql`
+(`lib/zetaris.ts`) and the write pools (`lib/db.ts`) go to an embedded Postgres
+(`src/sample/sampleDb.ts`) seeded from the same `infra/` SQL, and `chat`
+(`lib/llm.ts`) is not called, so every agent takes its rule-based fallback. The
+Meterless World Model engine runs unchanged. Sample mode is clearly labelled in the
+dashboard and in every trace step; the sponsor integration described above is
+live mode (`npm run dev`).
+
 ## Development environment
 
 Built with AI coding assistance (Claude Code in VS Code). If team members also

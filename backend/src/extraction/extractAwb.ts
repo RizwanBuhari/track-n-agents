@@ -118,14 +118,21 @@ export async function extractAwb(data: Uint8Array, fileName: string): Promise<Ex
   record("tool", `Read PDF text layer of ${fileName}`, { chars: plain.length });
 
   if (plain.length > 150) {
-    const reply = await chatJson<{ fields: Partial<ShipmentFields>; flaggedFields?: string[]; confidence?: number; notes?: string }>({
-      purpose: "Extract AWB fields",
-      model: "fast",
-      system: SYSTEM,
-      user: `AWB text (from ${fileName}):\n${plain.slice(0, 6000)}`,
-      maxTokens: 1200,
-      validate: (v) => (v && (typeof v.fields === "object" || "awbNumber" in v) ? null : 'wrap the values as {"fields": {...}}'),
-    });
+    let reply: { fields: Partial<ShipmentFields>; flaggedFields?: string[]; confidence?: number; notes?: string };
+    try {
+      reply = await chatJson({
+        purpose: "Extract AWB fields",
+        model: "fast",
+        system: SYSTEM,
+        user: `AWB text (from ${fileName}):\n${plain.slice(0, 6000)}`,
+        maxTokens: 1200,
+        validate: (v) => (v && (typeof v.fields === "object" || "awbNumber" in v) ? null : 'wrap the values as {"fields": {...}}'),
+      });
+    } catch (err) {
+      if (!(err instanceof LlmError)) throw err;
+      record("decision", `No model to read the AWB (${err.message.slice(0, 100)}); asking a person to enter the fields`);
+      return manualEntry("No model is available to read this AWB (sample mode, or Nightshift is offline). Please type the fields from the document shown on the left.");
+    }
     const fields = normalize(reply.fields ?? (reply as Partial<ShipmentFields>));
     const flagged = new Set(reply.flaggedFields ?? []);
     const notes = reply.notes ? [reply.notes] : [];
@@ -165,12 +172,10 @@ export async function extractAwb(data: Uint8Array, fileName: string): Promise<Ex
   } catch (err) {
     const reason = err instanceof LlmError ? "no vision lane is available in Nightshift" : (err as Error).message;
     record("decision", `Scanned document could not be read automatically (${reason}); asking a person to enter the fields`);
-    return {
-      fields: emptyFields(),
-      flaggedFields: [...FIELD_NAMES],
-      confidence: 0,
-      notes: `This is a scanned document with no text layer and ${reason}. Please type the fields from the document shown on the left.`,
-      method: "manual",
-    };
+    return manualEntry(`This is a scanned document with no text layer and ${reason}. Please type the fields from the document shown on the left.`);
   }
+}
+
+function manualEntry(notes: string): Extraction {
+  return { fields: emptyFields(), flaggedFields: [...FIELD_NAMES], confidence: 0, notes, method: "manual" };
 }

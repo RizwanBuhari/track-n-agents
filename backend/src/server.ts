@@ -35,7 +35,10 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 app.listen(config.port, () => {
-  console.log(`Track-N backend on http://localhost:${config.port}`);
+  console.log(`Track-N backend on http://localhost:${config.port}${config.sampleMode ? " (SAMPLE MODE: no Zetaris, databases or Nightshift)" : ""}`);
+  if (config.sampleMode) {
+    import("./sample/bootstrap.ts").then((m) => m.bootstrapSample()).catch((err) => console.error("sample bootstrap:", err));
+  }
 });
 
 // Reminder / escalation timers on the demo clock.

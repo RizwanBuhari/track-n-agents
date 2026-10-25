@@ -14,9 +14,15 @@ function env(name: string, fallback?: string): string {
   return value;
 }
 
+// Sample mode (`npm run sample`): no Zetaris, databases or Nightshift. Reads and
+// writes go to an embedded Postgres seeded from infra/, model calls take the
+// agents' rule-based paths, and state lives apart from the live demo's.
+const sampleMode = process.env.SAMPLE_MODE === "true";
+
 export const config = {
   port: Number(process.env.PORT ?? 4100),
-  dataDir: path.join(backendRoot, "data"),
+  sampleMode,
+  dataDir: path.join(backendRoot, "data", ...(sampleMode ? ["sample"] : [])),
   // Address the Zetaris driver container uses to reach the simulated
   // carrier and customs APIs served by this backend.
   zetarisCallbackBase: process.env.ZETARIS_CALLBACK_BASE ?? "http://host.docker.internal:4100",

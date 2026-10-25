@@ -12,6 +12,7 @@ export class ZetarisError extends Error {}
 
 export async function runSql(sql: string, opts: { purpose?: string; limit?: number; trace?: boolean } = {}): Promise<Row[]> {
   const started = Date.now();
+  if (config.sampleMode) return runSampleSql(sql, opts, started);
   const body = { queryId: randomUUID(), sql: sql.trim(), source: "SqlEditor", limit: opts.limit ?? 500 };
   let response: Response;
   try {
@@ -40,6 +41,21 @@ export async function runSql(sql: string, opts: { purpose?: string; limit?: numb
   if (opts.trace !== false) {
     record("sql", opts.purpose ?? "Zetaris query", { sql, rows: rows.length, sample: rows.slice(0, 5) }, Date.now() - started);
   }
+  return rows;
+}
+
+/** Sample mode: the same query against the embedded Postgres that stands in for Zetaris. */
+async function runSampleSql(sql: string, opts: { purpose?: string; limit?: number; trace?: boolean }, started: number): Promise<Row[]> {
+  const engine = "sample mode (embedded Postgres, no Zetaris)";
+  let rows: Row[];
+  try {
+    const { zetarisQuery } = await import("../sample/sampleDb.ts");
+    rows = await zetarisQuery(sql.trim(), opts.limit ?? 500);
+  } catch (err) {
+    if (opts.trace !== false) record("sql", `FAILED ${opts.purpose ?? "query"}`, { sql, engine, error: (err as Error).message.slice(0, 300) }, Date.now() - started);
+    throw new ZetarisError(`Sample database: ${(err as Error).message.slice(0, 300)}`);
+  }
+  if (opts.trace !== false) record("sql", opts.purpose ?? "Zetaris query", { sql, engine, rows: rows.length, sample: rows.slice(0, 5) }, Date.now() - started);
   return rows;
 }
 
