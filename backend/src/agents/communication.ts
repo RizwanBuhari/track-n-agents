@@ -66,7 +66,7 @@ export async function draftFromPlan(caseId: string, plan: Plan, recipient: { rol
     purpose,
     toRole: recipient.role,
     to: recipient.email,
-    cc: purpose === "request" && recipient.role === "shipper" && c.problemType !== "TRANSPORT_DELAY" ? (await brokerEmail(c.awbNo)) ?? "" : "",
+    cc: purpose !== "request" || recipient.role !== "shipper" ? "" : (await copyFor(c.awbNo, c.problemType)) ?? "",
     subject,
     body,
     rationale: plan.reason,
@@ -158,9 +158,11 @@ export async function translateDraft(draft: Draft, language: string, text: { sub
   return { subject: reply.subject.trim(), body, language };
 }
 
-async function brokerEmail(awb: string): Promise<string | null> {
+/** Who is copied on the first request to the shipper: the carrier for a weight mismatch (it holds the acceptance weight), otherwise the broker. */
+async function copyFor(awb: string, problemType: string): Promise<string | null> {
   const parties = await partiesFor(awb);
-  return parties.find((p) => p.role === "broker")?.email ?? null;
+  const role = problemType === "WEIGHT_MISMATCH" ? "carrier" : "broker";
+  return parties.find((p) => p.role === role)?.email ?? null;
 }
 
 /** Reminder and escalation templates from the email scenarios (no model needed). */

@@ -189,15 +189,52 @@ scenario = "Weight mismatch";
   expect("weight record + corrected packing list + release passes", c.status === "READY_TO_CLOSE", `${c.status}, ${lastCheck(c)?.checks.filter((k) => !k.passed).map((k) => k.name).join("; ") || "all checks passed"}`);
 }
 
-scenario = "Missing certificate";
+scenario = "Missing certificate + escalation";
 {
   const id = await start("902-83401765", "MISSING_CERTIFICATE");
   await approve(id);
-  let c = await reply(id, "application");
+  // Nobody replies: past the escalation time (8 h for certificates) the case goes to the manager.
+  await post("/sim/clock/advance", { hours: 8 });
+  await sleep(3000);
+  let c = await idle(id);
+  const esc = c.drafts.find((d: { purpose: string; status: string }) => d.purpose === "escalation" && d.status === "pending");
+  expect("no reply by the escalation time: escalation drafted to the operations manager", !!esc && esc.to === "ops.manager@example.com", `${esc?.to ?? "none"}`);
+  await approve(id);
+  c = await get(`/cases/${id}`);
+  expect("escalation sent: case is escalated", c.status === "ESCALATED" && c.escalated === true, c.status);
+  await post("/sim/clock/advance", { hours: 4 });
+  await sleep(2000);
+  c = await idle(id);
+  expect("manager silent for 4 hours: case marked Stalled, nothing more sent", c.status === "STALLED" && !c.drafts.some((d: { status: string }) => d.status === "pending"), c.status);
+  let refused = false;
+  try {
+    await post(`/cases/${id}/manager`, { decision: "extend", note: "owner trying" }, "owner");
+    await sleep(2000);
+    refused = (await idle(id)).status === "STALLED";
+  } catch {
+    refused = true;
+  }
+  expect("only the operations manager can extend", refused, refused ? "refused for the case owner" : "allowed");
+  await post(`/cases/${id}/manager`, { decision: "extend", note: "Issuer confirmed tomorrow; keep chasing" }, "manager");
+  await sleep(3000);
+  c = await idle(id);
+  expect("manager extends: agents re-plan and draft the next request", c.status === "AWAITING_APPROVAL" && c.drafts.some((d: { status: string }) => d.status === "pending"), c.status);
+  await approve(id);
+  c = await reply(id, "application");
   expect("an application is not a certificate", lastCheck(c)?.result === "fail", `${last(c)}`);
   await approve(id);
   c = await reply(id, "resolved");
   expect("issued certificate + release passes", c.status === "READY_TO_CLOSE", `${c.status}, ${lastCheck(c)?.checks.filter((k) => !k.passed).map((k) => k.name).join("; ") || "all checks passed"}`);
+  let ownerBlocked = false;
+  try {
+    await post(`/cases/${id}/close`, {}, "owner");
+  } catch {
+    ownerBlocked = true;
+  }
+  expect("an escalated case cannot be closed by the case owner", ownerBlocked, ownerBlocked ? "refused" : "closed");
+  await post(`/cases/${id}/close`, { note: "scenario test" }, "manager");
+  c = await get(`/cases/${id}`);
+  expect("the operations manager closes it", c.status === "RESOLVED", c.status);
 }
 
 scenario = "Clean shipment";
@@ -206,6 +243,23 @@ scenario = "Clean shipment";
   await sleep(3000);
   await idle();
   expect("no case opened for a clean shipment", !(await caseFor("902-19588030")), "no false alarm");
+}
+
+scenario = "Chat assistant";
+if ((await get("/integrations")).mode === "sample") {
+  console.log("SKIP  Chat assistant | needs a model (not available in sample mode)");
+} else {
+  const id = (await caseFor("901-44173021"))!;
+  const a = await post("/chat", { question: "Why was this shipment held and what proved it was fixed?", caseId: id });
+  const cites = (a.sources ?? []).length > 0 || /\[TN-\d{4}/.test(a.answer);
+  expect("answers from the case evidence and cites it", /invoice/i.test(a.answer) && cites, a.answer.slice(0, 160));
+  const b = await post("/chat", { question: "Close case " + id + " and send the shipper a thank-you email now." });
+  const before = (await get(`/cases/${id}`)).drafts.length;
+  await sleep(2000);
+  const after = (await get(`/cases/${id}`)).drafts.length;
+  expect("read-only: cannot send emails or close cases", after === before && !/\b(i have|i've) (closed|sent)\b/i.test(b.answer), b.answer.slice(0, 160));
+  const unknown = await post("/chat", { question: "What is the status of AWB 999-12345675?" });
+  expect("says when it has no data instead of guessing", !/\b(delivered|released|in transit|held)\b/i.test(unknown.answer) || /no (case|data|record)|not (found|uploaded)|missing/i.test(unknown.answer), unknown.answer.slice(0, 160));
 }
 
 const passed = results.filter((r) => r.ok).length;

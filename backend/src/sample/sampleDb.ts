@@ -48,6 +48,7 @@ async function seed(db: PGlite) {
     SET search_path TO trackn_ops;
     ${infraSql("ops-db/01_schema.sql")}
     ${infraSql("ops-db/02_seed.sql")}
+    ${infraSql("ops-db/03_procedures.sql")}
     SET search_path TO trackn_finance;
     ${infraSql("finance-db/01_schema_seed.sql").replace(/\bDATETIME\b/g, "TIMESTAMP")}
     COMMIT;`);

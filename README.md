@@ -144,6 +144,16 @@ pieces, not changing the system:
 
 ---
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) **Overview**: open cases, what waits for a person, live agent activity | ![Case](docs/screenshots/case-loop.png) **Case**: the finding with evidence, and the resolution loop with every check |
+| ![Trace](docs/screenshots/case-trace.png) **Agent trace**: every Zetaris query and Nemotron call, with the model that answered | ![Shipment](docs/screenshots/shipment-sources.png) **Shipment**: related records from every source, labelled with their source |
+| ![Upload](docs/screenshots/upload-extraction.png) **Upload AWB**: fields extracted automatically by NVIDIA Nemotron, shown beside the document for a person to check and confirm | ![System](docs/screenshots/system.png) **System**: Zetaris, Nightshift/Nemotron and the World Model, live |
+
+---
+
 ## Sponsor technology
 
 | | How Track-N uses it | Where |
@@ -167,7 +177,11 @@ against an answer sheet the agents never read:
 - [eval/scenario-results.md](eval/scenario-results.md): end-to-end behaviour for
   every problem type and trap (partial replies, premature release claim, wrong
   document, duplicate, unknown sender, hidden instructions, reminder timer,
-  two-stage closing, human closure).
+  escalation to the operations manager, stalled cases, manager-only closure,
+  two-stage closing, human closure, the read-only chat assistant).
+- [eval/traces/](eval/traces/): complete agent traces of example cases from a live
+  run: every Zetaris query, every Nemotron call (with the model that answered),
+  every decision and verification check, and the World Model audit log.
 - [eval/scenario-results-sample.md](eval/scenario-results-sample.md): the same
   suite in sample mode (no Zetaris or Nightshift; rule-based agent paths).
 
@@ -319,7 +333,7 @@ For the scenarios in sample mode: stop the backend, `npm run sample:reset`,
 |---|---|
 | **Overview** | Open cases, what is waiting for a person, live agent activity |
 | **Shipments** / detail | Confirmed AWB fields, related records from every source (with their source), carrier timeline, original PDF |
-| **Upload AWB** | Drop a PDF, check the extracted fields beside the document (flagged fields highlighted), confirm |
+| **Upload AWB** | Drop a PDF, check the extracted fields beside the document (flagged fields highlighted), confirm. Fields a shipment cannot be tracked without (AWB number with a valid check digit, carrier, origin, destination, shipper, consignee, goods, pieces, gross weight) must be filled first |
 | **Cases** / detail | The finding with evidence links, the full resolution loop (plans, emails, checks), evidence with source and record ID, timers and limits, World Model history, step-by-step agent traces |
 | **Approvals** | Edit, approve or send back every email; approve closures after verification |
 | **Simulator** (via *Demo controls*, top right) | Plays the outside world (replies, demo clock, duplicate resend), clearly labelled simulated; not part of the operations product |
@@ -340,15 +354,19 @@ Switch between the case owner and the operations manager at the top right.
 - `eval/answer_sheet/` holds the expected answers for scoring. No agent code reads it.
 - Database passwords in `infra/` and `.env.example` are local-only development
   defaults for containers bound to `127.0.0.1`.
-- Scanned AWBs need a vision lane in Nightshift; without one, Track-N asks the
-  person to type the fields (it never guesses).
+- Scanned AWBs are transcribed by an OCR vision lane in Nightshift
+  (`METERLESS_VISION_MODEL`, PaddleOCR-VL by default) and Nemotron then extracts the
+  fields; without a vision lane, Track-N asks the person to type the fields (it
+  never guesses).
 
 ## Traces
 
 Every agent run writes `backend/data/traces/<runId>.jsonl`: each model request
 (requested and served model, latency, token usage), each Zetaris query (SQL,
 row count, sample rows) and each decision. Runs stop at 25 steps and are marked
-*paused*, not failed. The dashboard shows them on each case page.
+*paused*, not failed. The dashboard shows them on each case page, and
+`npx tsx scripts/exportCaseTrace.ts <caseId>` exports one case as Markdown
+(examples in [eval/traces/](eval/traces/)).
 
 ## Pre-existing components (declared)
 

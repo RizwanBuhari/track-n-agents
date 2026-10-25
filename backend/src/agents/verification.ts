@@ -180,12 +180,14 @@ export async function verifyResolution(caseId: string, reading: ReplyReading, ma
       const v = await chatJson<{ blocking: boolean; concerns: string[]; reasoning: string }>({
         purpose: "Critique the proposed closure",
         model: "deep",
-        system: `You are the Verification agent's critic in Track-N. All rule checks passed for closing an exception case. Your job is to look for a reason NOT to close: second-hand claims, evidence about a different shipment, an action reported without its result, or anything on the procedure's "not enough" list. Only block for a concrete reason grounded in the text below. Return JSON {"blocking": true|false, "concerns": ["..."], "reasoning": "<two sentences>"}`,
+        system: `You are the Verification agent's critic in Track-N. All rule checks passed for closing an exception case. Your job is to look for a reason NOT to close: second-hand claims, evidence about a different shipment, an action reported without its result, or anything on the procedure's "not enough" list. Judge the case as a whole: required evidence may come from earlier replies in the case or from the records in the checks, not only from the latest reply. Only block for a concrete reason grounded in the text below. Return JSON {"blocking": true|false, "concerns": ["..."], "reasoning": "<two sentences>"}`,
         user: [
           `Case: ${c.title}, AWB ${c.awbNo}. Finding: ${c.summary}`,
           `Closing evidence required: ${proc.closing_evidence}`,
           `Not enough: ${proc.not_enough}`,
-          `Reply from ${mail.from_addr}: "${mail.subject}" ${mail.body}`,
+          `Still missing before this reply (from the previous verification): ${c.verifications.filter((x) => x.mode === "resolution").at(-1)?.checks.filter((k) => !k.passed && !k.name.startsWith("Reply")).map((k) => k.name).join("; ") || "everything (first claimed resolution)"}. Items not listed here were already established; do not block on them unless the evidence below contradicts them.`,
+          `Earlier replies in this case: ${c.emails.filter((e) => e.direction === "inbound" && e.classification !== "DUPLICATE" && e.classification !== "UNVERIFIED_SENDER").map((e) => `${e.from} [${e.classification}]: ${e.meaning}`).join(" || ") || "none"}`,
+          `Latest reply from ${mail.from_addr}: "${mail.subject}" ${mail.body}`,
           `Checks: ${checks.map((k) => `${k.name}: ${k.detail}`).join(" | ")}`,
         ].join("\n"),
         maxTokens: 500,

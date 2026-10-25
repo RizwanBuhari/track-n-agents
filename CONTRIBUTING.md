@@ -111,7 +111,7 @@ then `npm run setup:zetaris` again (it prints "exists" for sources already regis
 |---|---|
 | Change how a problem is detected | `backend/src/agents/investigation.ts` (`screen`, prompt) |
 | Change a closing check | `backend/src/agents/verification.ts` (`typeChecks`) |
-| Change who is asked or what is asked | `infra/ops-db/02_seed.sql` (`procedures`), `backend/src/agents/planning.ts` |
+| Change who is asked or what is asked | `infra/ops-db/03_procedures.sql` (then `npm run reset` applies it), `backend/src/agents/planning.ts` |
 | Change email wording rules | `backend/src/agents/communication.ts` |
 | Add a scripted reply for the demo | `backend/src/sim/scenarios.ts` |
 | Add an API endpoint | `backend/src/routes/api.ts` |

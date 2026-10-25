@@ -70,7 +70,7 @@ export async function plan(caseId: string, ctx: PlanContext): Promise<{ plan: Pl
         if (v.action !== "escalate" && !allowed.some((p) => p.role === v.toRole)) return `toRole must be one of ${allowed.map((p) => p.role).join(", ")}`;
         if (!v.ask || v.ask.length < 15) return "ask must say exactly what we need";
         if (ctx.reason === "wrong_document" && ctx.fromRole && v.toRole !== ctx.fromRole) return `a wrong document goes back to its sender (${ctx.fromRole}) naming the mistake`;
-        if (ctx.reason === "new_case" && v.action === "request" && v.toRole !== proc.request_to_role) return `the first request goes to the ${proc.request_to_role}, as the procedure says`;
+        if (ctx.reason === "new_case" && (v.action !== "request" || v.toRole !== proc.request_to_role)) return `a new case starts with action "request" to the ${proc.request_to_role}, as the procedure says`;
         const withoutAwbs = `${v.ask} ${v.goal}`.replace(/\b\d{3}[- ]?\d{4} ?\d{4}\b/g, "");
         if (c.problemType === "HS_CODE_ERROR" && /\b\d{6,10}\b/.test(withoutAwbs)) return "never name or suggest an HS code; ask for specifications and let the broker decide the code";
         return null;

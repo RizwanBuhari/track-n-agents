@@ -6,7 +6,7 @@
 
 import { extractImages, extractText, getDocumentProxy } from "unpdf";
 import { PNG } from "pngjs";
-import { chat, chatJson, LlmError, parseJsonReply } from "../lib/llm.ts";
+import { chat, chatJson, LlmError } from "../lib/llm.ts";
 import { awbCheckDigitValid, canonicalAwb } from "../lib/refs.ts";
 import { record } from "../lib/trace.ts";
 import type { ShipmentFields } from "../services/shipments.ts";
@@ -16,7 +16,7 @@ export type Extraction = {
   flaggedFields: string[];
   confidence: number;
   notes: string;
-  method: "text+nemotron" | "vision" | "manual";
+  method: "text+nemotron" | "ocr+nemotron" | "manual";
   model?: string;
 };
 
@@ -73,7 +73,17 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 function crossCheck(fields: ShipmentFields, text: string, flagged: Set<string>, notes: string[]) {
   if (!canonicalAwb(fields.awbNumber)) {
     flagged.add("awbNumber");
-    notes.push("AWB number is not 11 digits.");
+    // Often the house AWB (forwarder reference) was picked. Look for a master AWB in the
+    // text: 3-digit airline prefix, optional airport code, 8-digit serial, valid check digit.
+    const master = [...text.toUpperCase().matchAll(/\b(\d{3})[\s-]*(?:[A-Z]{3}[\s-]*)?(\d{4}\s?\d{4})\b/g)]
+      .map((x) => `${x[1]}-${x[2].replace(/\s/g, "")}`)
+      .find((candidate) => awbCheckDigitValid(candidate));
+    if (master) {
+      notes.push(`"${fields.awbNumber || "blank"}" is not an 11-digit master AWB (it may be the house AWB). Suggested the master AWB ${master} found on the document: please confirm.`);
+      fields.awbNumber = master;
+    } else {
+      notes.push("AWB number is not 11 digits.");
+    }
   } else if (!awbCheckDigitValid(fields.awbNumber)) {
     flagged.add("awbNumber");
     notes.push("AWB check digit fails: probably a misread digit.");
@@ -97,6 +107,12 @@ function crossCheck(fields: ShipmentFields, text: string, flagged: Set<string>, 
       flagged.add(k);
     }
   }
+  // Numeric dates like 07/08/2026 can be day/month or month/day: never trust either reading silently.
+  const slash = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  if (slash && Number(slash[1]) <= 12 && Number(slash[2]) <= 12 && slash[1] !== slash[2]) {
+    flagged.add("flightDate");
+    notes.push(`The document's date ${slash[0]} could be day/month or month/day: check the flight date.`);
+  }
   // IATA "Requested Flight/Date" is printed like DW512/10OCT26: parse it ourselves and correct the model.
   const m = text.toUpperCase().match(/\b([A-Z0-9]{2})\s?(\d{1,4})\s*\/\s*(\d{2})(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(\d{2})\b/);
   if (m) {
@@ -111,36 +127,45 @@ function crossCheck(fields: ShipmentFields, text: string, flagged: Set<string>, 
   }
 }
 
+/** Nemotron maps document text (from the PDF text layer or from OCR) to the AWB fields. */
+async function fieldsFromText(text: string, fileName: string, source: "text" | "ocr", ocrModel?: string): Promise<Extraction> {
+  let reply: { fields: Partial<ShipmentFields>; flaggedFields?: string[]; confidence?: number; notes?: string };
+  try {
+    reply = await chatJson({
+      purpose: "Extract AWB fields",
+      model: "fast",
+      system: SYSTEM,
+      user: `AWB text (${source === "ocr" ? "OCR of a scanned image, may contain misread characters" : "PDF text layer"}, from ${fileName}):
+${text.slice(0, 6000)}`,
+      maxTokens: 1200,
+      validate: (v) => (v && (typeof v.fields === "object" || "awbNumber" in v) ? null : 'wrap the values as {"fields": {...}}'),
+    });
+  } catch (err) {
+    if (!(err instanceof LlmError)) throw err;
+    record("decision", `No model to read the AWB (${err.message.slice(0, 100)}); asking a person to enter the fields`);
+    return manualEntry("No model is available to read this AWB (sample mode, or Nightshift is offline). Please type the fields from the document shown on the left.");
+  }
+  const fields = normalize(reply.fields ?? (reply as Partial<ShipmentFields>));
+  const flagged = new Set(reply.flaggedFields ?? []);
+  const notes = source === "ocr" ? ["Read from a scanned image by OCR: check every field against the document."] : [];
+  if (reply.notes) notes.push(reply.notes);
+  crossCheck(fields, text, flagged, notes);
+  return source === "ocr"
+    ? { fields, flaggedFields: [...flagged], confidence: Math.min(reply.confidence ?? 0.6, 0.7), notes: notes.join(" "), method: "ocr+nemotron", model: ocrModel }
+    : { fields, flaggedFields: [...flagged], confidence: reply.confidence ?? 0.8, notes: notes.join(" "), method: "text+nemotron" };
+}
+
 export async function extractAwb(data: Uint8Array, fileName: string): Promise<Extraction> {
   const pdf = await getDocumentProxy(new Uint8Array(data));
   const { text } = await extractText(pdf, { mergePages: true });
-  const plain = String(text).replace(/[ \t]+/g, " ").trim();
+  const plain = String(text).replace(/[ 	]+/g, " ").trim();
   record("tool", `Read PDF text layer of ${fileName}`, { chars: plain.length });
+  if (plain.length > 150) return fieldsFromText(plain, fileName, "text");
 
-  if (plain.length > 150) {
-    let reply: { fields: Partial<ShipmentFields>; flaggedFields?: string[]; confidence?: number; notes?: string };
-    try {
-      reply = await chatJson({
-        purpose: "Extract AWB fields",
-        model: "fast",
-        system: SYSTEM,
-        user: `AWB text (from ${fileName}):\n${plain.slice(0, 6000)}`,
-        maxTokens: 1200,
-        validate: (v) => (v && (typeof v.fields === "object" || "awbNumber" in v) ? null : 'wrap the values as {"fields": {...}}'),
-      });
-    } catch (err) {
-      if (!(err instanceof LlmError)) throw err;
-      record("decision", `No model to read the AWB (${err.message.slice(0, 100)}); asking a person to enter the fields`);
-      return manualEntry("No model is available to read this AWB (sample mode, or Nightshift is offline). Please type the fields from the document shown on the left.");
-    }
-    const fields = normalize(reply.fields ?? (reply as Partial<ShipmentFields>));
-    const flagged = new Set(reply.flaggedFields ?? []);
-    const notes = reply.notes ? [reply.notes] : [];
-    crossCheck(fields, plain, flagged, notes);
-    return { fields, flaggedFields: [...flagged], confidence: reply.confidence ?? 0.8, notes: notes.join(" "), method: "text+nemotron" };
-  }
-
-  // Scanned: no text layer. Try a vision lane.
+  // Scanned: no text layer. Step 1: the vision lane (PaddleOCR-VL) transcribes the page image.
+  // Step 2: Nemotron extracts the fields from that text, exactly as for a text PDF.
+  let ocrText: string;
+  let ocrModel: string;
   try {
     const images = await extractImages(pdf, 1);
     const img = images.sort((a, b) => b.width * b.height - a.width * a.height)[0];
@@ -155,25 +180,22 @@ export async function extractAwb(data: Uint8Array, fileName: string): Promise<Ex
     }
     const b64 = PNG.sync.write(png).toString("base64");
     const result = await chat({
-      purpose: "Read scanned AWB (vision)",
+      purpose: "OCR scanned AWB (vision lane)",
       model: "vision",
-      maxTokens: 1200,
+      maxTokens: 2500,
       messages: [
-        { role: "system", content: SYSTEM + "\nReply with one JSON object only." },
-        { role: "user", content: [{ type: "text", text: `Scanned AWB ${fileName}.` }, { type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } }] },
+        { role: "user", content: [{ type: "text", text: "Transcribe all text on this air waybill exactly as printed, line by line, including box labels, numbers and dates." }, { type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } }] },
       ],
     });
-    const reply = parseJsonReply<{ fields: Partial<ShipmentFields>; flaggedFields?: string[]; confidence?: number; notes?: string }>(result.text);
-    const fields = normalize(reply.fields);
-    const flagged = new Set(reply.flaggedFields ?? []);
-    const notes = ["Read from a scanned image: check every field.", ...(reply.notes ? [reply.notes] : [])];
-    crossCheck(fields, "", flagged, notes);
-    return { fields, flaggedFields: [...flagged], confidence: Math.min(reply.confidence ?? 0.6, 0.7), notes: notes.join(" "), method: "vision", model: result.model };
+    ocrText = result.text.replace(/[ 	]+/g, " ").trim();
+    ocrModel = result.model;
+    if (ocrText.length < 80) throw new Error("the OCR returned almost no text");
   } catch (err) {
     const reason = err instanceof LlmError ? "no vision lane is available in Nightshift" : (err as Error).message;
     record("decision", `Scanned document could not be read automatically (${reason}); asking a person to enter the fields`);
     return manualEntry(`This is a scanned document with no text layer and ${reason}. Please type the fields from the document shown on the left.`);
   }
+  return fieldsFromText(ocrText, fileName, "ocr", ocrModel);
 }
 
 function manualEntry(notes: string): Extraction {
