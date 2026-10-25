@@ -76,6 +76,88 @@ export async function draftFromPlan(caseId: string, plan: Plan, recipient: { rol
   return draft;
 }
 
+const TRANSLATE_SYSTEM = `You are the Communication agent in Track-N translating a business email written by the operations team.
+- Translate the subject and body faithfully into the requested language. Keep the meaning, tone and paragraph breaks.
+- Keep every reference exactly as written: AWB numbers, the [TN-xxxx] case tag, invoice and document numbers, clearance references, email addresses, company names and "Track-N Operations".
+- Add nothing, leave nothing out, no notes about the translation.
+- The whole body must be written in the requested language. Never copy the English sentences back.
+Return JSON: {"subject": "<translated subject>", "body": "<translated body>"}`;
+
+// Languages written in their own script: a real translation is mostly in that script.
+const LANGUAGE_SCRIPT: [RegExp, RegExp][] = [
+  [/arabic|urdu|persian|farsi|pashto/i, /\p{Script=Arabic}/u],
+  [/chinese|mandarin|cantonese/i, /\p{Script=Han}/u],
+  [/japanese/i, /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u],
+  [/korean/i, /\p{Script=Hangul}/u],
+  [/hindi|marathi|nepali/i, /\p{Script=Devanagari}/u],
+  [/bengali|bangla/i, /\p{Script=Bengali}/u],
+  [/tamil/i, /\p{Script=Tamil}/u],
+  [/thai/i, /\p{Script=Thai}/u],
+  [/russian|ukrainian|bulgarian|serbian|kazakh/i, /\p{Script=Cyrillic}/u],
+  [/greek/i, /\p{Script=Greek}/u],
+  [/hebrew/i, /\p{Script=Hebrew}/u],
+];
+
+/** Why a model "translation" is not one (null if it looks translated). */
+export function untranslated(source: string, result: string, language: string): string | null {
+  const letters = [...result.replace(/\b[A-Z0-9][A-Z0-9-]*\d[A-Z0-9-]*\b/g, "")].filter((ch) => /\p{L}/u.test(ch));
+  const script = LANGUAGE_SCRIPT.find(([name]) => name.test(language))?.[1];
+  if (script && letters.length && letters.filter((ch) => script.test(ch)).length / letters.length < 0.4) {
+    return `the body is not written in ${language}; translate every sentence, keeping only names and references as they are`;
+  }
+  // Words from a third script slipped in (e.g. Chinese inside an Arabic subject).
+  const stray = letters.find((ch) => !/[\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u.test(ch) && !(script ?? /$^/u).test(ch) && !(/japanese/i.test(language) && /\p{Script=Han}/u.test(ch)));
+  if (stray) return `the text mixes in another script ("${stray}"); write only in ${language}, keeping names and references in Latin letters`;
+  // Same sentences back: most of the source's longer words reappear unchanged.
+  const words = (t: string) => new Set(t.toLowerCase().match(/\p{L}{5,}/gu) ?? []);
+  const src = words(source);
+  const out = words(result);
+  const kept = [...src].filter((w) => out.has(w)).length;
+  if (src.size >= 8 && kept / src.size > 0.5) return `the body is still in English; translate every sentence into ${language}`;
+  return null;
+}
+
+/**
+ * Translates a draft for the person approving it. Nothing is saved: the
+ * person reviews the translation and approves it like any edit.
+ */
+export async function translateDraft(draft: Draft, language: string, text: { subject: string; body: string }, includeOriginal = true): Promise<{ subject: string; body: string; language: string }> {
+  const c = getCase(draft.caseId)!;
+  const tag = `[${draft.caseId}]`;
+  const ask = (model: "fast" | "deep") => chatJson<{ subject: string; body: string }>({
+    purpose: `Translate draft to ${language}${model === "deep" ? " (Ultra)" : ""}`,
+    model,
+    system: TRANSLATE_SYSTEM,
+    user: [`Translate into: ${language}`, `Subject: ${text.subject}`, "Body:", text.body].join("\n"),
+    maxTokens: 2500,
+    validate: (v) => {
+      if (!v.subject || !v.body) return "give both subject and body";
+      if (text.subject.includes(tag) && !v.subject.includes(tag)) return `keep the case tag ${tag} in the subject exactly`;
+      if (!digitsOnly(v.body).includes(digitsOnly(c.awbNo))) return `keep AWB ${c.awbNo} in the body`;
+      if (/\{\{|<name>/i.test(v.body)) return "no placeholders";
+      if (v.body.length > text.body.length * 4 + 200) return "translate only; the reply is far longer than the original";
+      return untranslated(text.body, v.body, language) ?? untranslated(text.subject, v.subject, language);
+    },
+  });
+  let reply: { subject: string; body: string };
+  try {
+    try {
+      reply = await ask("fast");
+    } catch (err) {
+      if (!(err instanceof LlmError) || err.message.startsWith("sample mode")) throw err;
+      // Lightning sometimes copies the English back; the larger model translates reliably.
+      record("decision", `Lightning gave no valid translation (${err.message.slice(0, 120)}); asking Nemotron Ultra`);
+      reply = await ask("deep");
+    }
+  } catch (err) {
+    if (!(err instanceof LlmError)) throw err;
+    throw new Error(err.message.startsWith("sample mode") ? "Translation needs the live model (Nightshift); it is not available in sample mode." : `Translation failed: ${err.message}`);
+  }
+  const body = includeOriginal ? `${reply.body.trim()}\n\n---\nEnglish version:\n\n${text.body.trim()}` : reply.body.trim();
+  record("decision", `Translated draft ${draft.id} to ${language} for review${includeOriginal ? " (English original kept below)" : ""}`);
+  return { subject: reply.subject.trim(), body, language };
+}
+
 async function brokerEmail(awb: string): Promise<string | null> {
   const parties = await partiesFor(awb);
   return parties.find((p) => p.role === "broker")?.email ?? null;

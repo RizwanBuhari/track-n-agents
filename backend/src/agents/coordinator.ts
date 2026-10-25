@@ -17,6 +17,7 @@ import {
 import { draftEscalation, draftFromPlan, draftReminder, matchCase, readReply, sendDraft } from "./communication.ts";
 import { applyFinding, investigate } from "./investigation.ts";
 import { plan, timersFor, type PlanContext } from "./planning.ts";
+import { priorityOf } from "./priority.ts";
 import { procedureFor } from "./sources.ts";
 import { attachmentBelongs, reviewFinding, verifyResolution } from "./verification.ts";
 import { config } from "../config.ts";
@@ -105,7 +106,7 @@ export function investigateShipment(awb: string, owner: string, trigger: string)
 
 // ----------------------------------------------------------------- drafts
 
-export function approveDraft(draftId: string, user: DemoUser, edits?: { subject?: string; body?: string }) {
+export function approveDraft(draftId: string, user: DemoUser, edits?: { subject?: string; body?: string; language?: string }) {
   const draft = getDraft(draftId);
   if (!draft) throw new Error(`Unknown draft ${draftId}`);
   return serial(`case:${draft.caseId}`, () =>
@@ -116,7 +117,7 @@ export function approveDraft(draftId: string, user: DemoUser, edits?: { subject?
       const approved = await updateDraft(draftId, { ...edits, status: "approved", decidedBy: user.name, decidedAt: clock.now().toISOString() }, `user:${user.id}`);
       const mail = await asAgent("communication", () => sendDraft(approved));
       await updateDraft(draftId, { status: "sent", messageId: mail.message_id }, "communication");
-      record("tool", `Sent ${draft.purpose} to ${draft.to} after approval by ${user.name}`, { messageId: mail.message_id });
+      record("tool", `Sent ${draft.purpose} to ${draft.to}${approved.language ? ` in ${approved.language}` : ""} after approval by ${user.name}`, { messageId: mail.message_id });
 
       const sentAt = mail.sent_at;
       const proc = await procedureFor(c.problemType);
@@ -321,6 +322,11 @@ export async function tick(): Promise<void> {
   }
 }
 
+/** Drafts waiting for a person, highest-priority case first. */
 export function pendingApprovals(): Draft[] {
-  return listDrafts().filter((d) => d.status === "pending").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const score = (caseId: string) => {
+    const f = caseFacts(caseId);
+    return f ? priorityOf(f).score : 0;
+  };
+  return listDrafts().filter((d) => d.status === "pending").sort((a, b) => score(b.caseId) - score(a.caseId) || a.createdAt.localeCompare(b.createdAt));
 }
