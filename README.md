@@ -71,6 +71,36 @@ gates: no email is sent and no case is closed without a person.
 Missing invoice · Wrong shipment reference on the invoice · Transport delay ·
 Conflicting status · Wrong HS code · Weight mismatch · Missing certificate.
 
+### Case priority
+
+Open cases are ranked automatically. **Severity** (1–5) is read from the case
+content each time Investigation makes a finding: Nemotron rates it from the
+problem, explanation, goods and declared value. In sample mode, rules do the
+rating instead: customs holds score higher, as do perishable or medical goods
+and high values. **Urgency** (0–5) is recomputed on every request from the demo
+clock: deadlines passed or near, escalated or stalled cases, a person needed,
+loops so far, flags and age. Score = severity × 2 + urgency. The Cases list,
+Overview and Approvals are ordered by it, and each case shows why it ranks
+where it does. Cases that existed before ranking was added are rated once at
+start-up, and any case can be re-rated from its page.
+(`backend/src/agents/priority.ts`)
+
+### Emails in the recipient's language
+
+Each draft waiting for approval suggests a language for its recipient. The
+shipper gets the language of the origin airport's country, and the consignee,
+broker and warehouse get the destination's. Carriers and managers get English.
+When the airport is unknown, the company's legal form is used instead (GmbH,
+S.r.l. and so on). The person can pick a suggestion or type any language, and
+Communication translates the draft with Nemotron. The translation keeps the
+AWB number, the `[TN-xxxx]` tag and every reference unchanged, and by default
+the English original goes underneath. The person reviews the result and
+approves it like any edit, and the language is recorded on the draft.
+Translation needs live mode. The deterministic reply checks (hidden-instruction
+pattern, sample-mode reply reading) are English-only, and replies in other
+languages are read by the Nemotron classifier. (`backend/src/lib/locale.ts`,
+`translateDraft` in `backend/src/agents/communication.ts`)
+
 ### Beyond air freight
 
 The agents, the Zetaris data layer, the World Model case state, the approval

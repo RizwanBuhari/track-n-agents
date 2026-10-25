@@ -61,6 +61,9 @@ export type CaseFacts = {
   closureNote: string;
   flags: string[];
   investigationRun: string;
+  severity?: number;
+  severityReason?: string;
+  severityMethod?: string;
 };
 
 export type Evidence = {
@@ -90,6 +93,7 @@ export type Draft = {
   decidedBy?: string;
   decidedAt?: string;
   messageId?: string;
+  language?: string;
 };
 
 export type Check = { name: string; passed: boolean; detail: string; evidenceIds?: string[] };

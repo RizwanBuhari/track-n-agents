@@ -6,18 +6,21 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import multer from "multer";
 import { backendRoot, config } from "../config.ts";
 import { ask } from "../agents/assistant.ts";
+import { translateDraft } from "../agents/communication.ts";
+import { assessSeverity, priorityOf } from "../agents/priority.ts";
+import { suggestLanguages } from "../lib/locale.ts";
 import { approveClosure, approveDraft, investigateShipment, managerDecision, pendingApprovals, receiveEmail, reinvestigate, rejectDraft, tick } from "../agents/coordinator.ts";
 import { partiesFor, customsFor, documentsFor, invoicesFor, trackingFor } from "../agents/sources.ts";
 import { extractAwb } from "../extraction/extractAwb.ts";
 import { clock } from "../lib/clock.ts";
 import { ops } from "../lib/db.ts";
 import { listModels } from "../lib/llm.ts";
-import { listRuns, readTrace, withRun } from "../lib/trace.ts";
+import { asAgent, listRuns, readTrace, withRun } from "../lib/trace.ts";
 import { runSql } from "../lib/zetaris.ts";
 import { confirmShipment, getShipment, listShipments } from "../services/shipments.ts";
 import { DEMO_USERS, userById } from "../services/users.ts";
 import { contextFor, deliver, redeliver, scriptsFor } from "../sim/scenarios.ts";
-import { caseActivity, caseFacts, factHistory, getCase, listCaseIds, world } from "../state/caseState.ts";
+import { caseActivity, caseFacts, factHistory, getCase, getDraft, listCaseIds, OPEN_STATUSES, world } from "../state/caseState.ts";
 import { broadcast } from "./events.ts";
 
 export const api = Router();
@@ -38,7 +41,14 @@ function background(label: string, p: Promise<unknown>) {
 
 const caseSummary = (id: string) => {
   const f = caseFacts(id)!;
-  return { caseId: id, status: f.status, problemType: f.problemType, title: f.title, awbNo: f.awbNo, owner: f.owner, summary: f.summary, nextAction: f.nextAction, awaitingRole: f.awaitingRole, openedAt: f.openedAt, closedAt: f.closedAt, escalated: f.escalated, flags: f.flags, reminders: f.reminders, sendBacks: f.sendBacks, wrongDocs: f.wrongDocs, nextReminderAt: f.nextReminderAt, escalateAt: f.escalateAt };
+  return { caseId: id, status: f.status, problemType: f.problemType, title: f.title, awbNo: f.awbNo, owner: f.owner, summary: f.summary, nextAction: f.nextAction, awaitingRole: f.awaitingRole, openedAt: f.openedAt, closedAt: f.closedAt, escalated: f.escalated, flags: f.flags, reminders: f.reminders, sendBacks: f.sendBacks, wrongDocs: f.wrongDocs, nextReminderAt: f.nextReminderAt, escalateAt: f.escalateAt, priority: priorityOf(f), severityMethod: f.severityMethod ?? null };
+};
+
+/** Open cases by priority (highest first), then closed cases newest first. */
+const byPriority = (a: ReturnType<typeof caseSummary>, b: ReturnType<typeof caseSummary>) => {
+  const openA = OPEN_STATUSES.includes(a.status), openB = OPEN_STATUSES.includes(b.status);
+  if (openA !== openB) return openA ? -1 : 1;
+  return (openA ? b.priority.score - a.priority.score : 0) || b.openedAt.localeCompare(a.openedAt);
 };
 
 // ----------------------------------------------------------------- users
@@ -109,14 +119,14 @@ api.post("/shipments/:awb/investigate", (req, res) => {
 // ----------------------------------------------------------------- cases
 
 api.get("/cases", (_req, res) => {
-  res.json(listCaseIds().map(caseSummary).reverse());
+  res.json(listCaseIds().map(caseSummary).sort(byPriority));
 });
 
 api.get("/cases/:id", (req, res) => {
   const id = String(req.params.id);
   const c = getCase(id);
   if (!c) return res.status(404).json({ error: "Not found" });
-  res.json({ ...c, activity: caseActivity(id), runs: listRuns(id), factHistory: factHistory(id).map((f) => ({ predicate: f.predicate, value: f.value, at: f.assertedAt, by: f.source.by })) });
+  res.json({ ...c, priority: priorityOf(caseFacts(id)!), activity: caseActivity(id), runs: listRuns(id), factHistory: factHistory(id).map((f) => ({ predicate: f.predicate, value: f.value, at: f.assertedAt, by: f.source.by })) });
 });
 
 api.post("/cases/:id/close", wrap(async (req, res) => {
@@ -129,6 +139,13 @@ api.post("/cases/:id/manager", (req, res) => {
   res.status(202).json({ ok: true });
 });
 
+api.post("/cases/:id/priority", wrap(async (req, res) => {
+  const id = String(req.params.id);
+  if (!caseFacts(id)) return res.status(404).json({ error: "Not found" });
+  await withRun("rate priority", id, () => asAgent("investigation", () => assessSeverity(id)));
+  res.json(priorityOf(caseFacts(id)!));
+}));
+
 api.post("/cases/:id/reinvestigate", (req, res) => {
   background("reinvestigate", reinvestigate(String(req.params.id), user(req)));
   res.status(202).json({ ok: true });
@@ -137,12 +154,33 @@ api.post("/cases/:id/reinvestigate", (req, res) => {
 // ------------------------------------------------------------- approvals
 
 api.get("/approvals", (_req, res) => {
-  const ready = listCaseIds().map(caseSummary).filter((c) => c.status === "READY_TO_CLOSE");
-  res.json({ drafts: pendingApprovals(), closures: ready });
+  const ready = listCaseIds().map(caseSummary).filter((c) => c.status === "READY_TO_CLOSE").sort(byPriority);
+  res.json({ drafts: pendingApprovals().map((d) => ({ ...d, priority: priorityOf(caseFacts(d.caseId)!) })), closures: ready });
 });
 
+api.get("/drafts/:id/languages", wrap(async (req, res) => {
+  const draft = getDraft(String(req.params.id));
+  if (!draft) return res.status(404).json({ error: "Not found" });
+  const f = caseFacts(draft.caseId)!;
+  const [shipment, parties] = await Promise.all([getShipment(f.awbNo), partiesFor(f.awbNo)]);
+  const party = parties.find((p) => p.email.toLowerCase() === draft.to.toLowerCase()) ?? parties.find((p) => p.role === draft.toRole);
+  const role = party?.role ?? draft.toRole;
+  res.json({ recipient: { role, name: party?.name ?? draft.to }, suggested: suggestLanguages(role, shipment, party?.name) });
+}));
+
+api.post("/drafts/:id/translate", wrap(async (req, res) => {
+  const draft = getDraft(String(req.params.id));
+  if (!draft) return res.status(404).json({ error: "Not found" });
+  const language = String(req.body?.language ?? "").trim();
+  if (!language || language.length > 60) return res.status(400).json({ error: "Choose a language" });
+  const text = { subject: String(req.body?.subject ?? draft.subject), body: String(req.body?.body ?? draft.body) };
+  const result = await withRun(`translate ${draft.id} to ${language}`, draft.caseId, () =>
+    asAgent("communication", () => translateDraft(draft, language, text, req.body?.includeOriginal !== false)));
+  res.json(result);
+}));
+
 api.post("/drafts/:id/approve", wrap(async (req, res) => {
-  await approveDraft(String(req.params.id), user(req), { subject: req.body?.subject, body: req.body?.body });
+  await approveDraft(String(req.params.id), user(req), { subject: req.body?.subject, body: req.body?.body, language: req.body?.language || undefined });
   res.json({ ok: true });
 }));
 
