@@ -166,7 +166,7 @@ async function brokerEmail(awb: string): Promise<string | null> {
 /** Reminder and escalation templates from the email scenarios (no model needed). */
 export async function draftReminder(caseId: string, n: number): Promise<Draft> {
   const c = getCase(caseId)!;
-  const last = c.drafts.filter((d) => d.status === "sent" && d.purpose !== "escalation").at(-1);
+  const last = c.drafts.filter((d) => d.status === "sent" && d.purpose !== "escalation" && d.purpose !== "notify").at(-1);
   const to = last?.to ?? "";
   return saveDraft(caseId, {
     purpose: "reminder",
@@ -191,6 +191,21 @@ export async function draftEscalation(caseId: string, why: string): Promise<Draf
     subject: subjectFor(caseId, c.awbNo, c.title, "Escalation: "),
     body: `Hello,\n\n${caseId} (AWB ${c.awbNo}, ${c.title.toLowerCase()}) remains unresolved: ${why}\n\nWhat we asked for: ${c.nextAction}\nStill missing: ${missing || "the closing evidence listed in the case"}\n\nPlease assign an owner and the next checkpoint, extend the deadline, or close the case as unresolved.\n\nTrack-N Operations`,
     rationale: why,
+    createdBy: "communication",
+  });
+}
+
+/** Heads-up to the operations manager when a case becomes Critical. Informational: the case keeps running. */
+export async function draftCriticalNotice(caseId: string, reasons: string[]): Promise<Draft> {
+  const c = getCase(caseId)!;
+  return saveDraft(caseId, {
+    purpose: "notify",
+    toRole: "operations_manager",
+    to: OPERATIONS_MANAGER.email,
+    cc: "",
+    subject: subjectFor(caseId, c.awbNo, c.title, "Critical: "),
+    body: `Hello,\n\n${caseId} (AWB ${c.awbNo}, ${c.title.toLowerCase()}) is now Critical priority.\n\nWhy:\n${reasons.map((r) => `- ${r}`).join("\n")}\n\nCurrent status: ${c.status.replace(/_/g, " ").toLowerCase()}. Next action: ${c.nextAction || "being planned"}\nIts reminder and escalation timers now run at half time.\n\nPlease assign an owner or keep watch on this case.\n\nTrack-N Operations`,
+    rationale: "The case priority rose to Critical; the manager is told before it escalates.",
     createdBy: "communication",
   });
 }

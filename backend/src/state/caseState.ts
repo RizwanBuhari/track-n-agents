@@ -64,6 +64,9 @@ export type CaseFacts = {
   severity?: number;
   severityReason?: string;
   severityMethod?: string;
+  timerFactor?: number;
+  criticalAlertedAt?: string | null;
+  criticalReasons?: string[];
 };
 
 export type Evidence = {

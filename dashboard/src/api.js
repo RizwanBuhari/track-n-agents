@@ -52,7 +52,7 @@ const listeners = new Set()
 function ensureSource() {
   if (source) return
   source = new EventSource('/api/events')
-  for (const type of ['step', 'world', 'mail', 'clock', 'error']) {
+  for (const type of ['step', 'world', 'mail', 'clock', 'error', 'alert']) {
     source.addEventListener(type, (e) => {
       const data = JSON.parse(e.data)
       for (const fn of listeners) fn(type, data)

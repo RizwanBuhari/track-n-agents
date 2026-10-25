@@ -103,7 +103,12 @@ export async function backfillSeverity(): Promise<number> {
   return n;
 }
 
-const hoursUntil = (iso: string | null, now: Date) => (iso ? (new Date(iso).getTime() - now.getTime()) / 3_600_000 : null);
+/** How fast the reminder and escalation timers run: Critical cases at half time, High at three quarters. */
+export function timerFactor(level: Priority["level"]): number {
+  return level === "Critical" ? 0.5 : level === "High" ? 0.75 : 1;
+}
+
+const hoursUntil =(iso: string | null, now: Date) => (iso ? (new Date(iso).getTime() - now.getTime()) / 3_600_000 : null);
 
 /** Severity and urgency combined into one ranking score. */
 export function priorityOf(f: CaseFacts, now: Date = clock.now()): Priority {

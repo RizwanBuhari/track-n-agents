@@ -14,10 +14,11 @@ import {
   addEvidence, caseFacts, findOpenCase, getCase, getDraft, linkEmail, listCaseIds, listDrafts, OPEN_STATUSES, setFacts, updateDraft,
   type CaseStatus, type Draft,
 } from "../state/caseState.ts";
-import { draftEscalation, draftFromPlan, draftReminder, matchCase, readReply, sendDraft } from "./communication.ts";
+import { draftCriticalNotice, draftEscalation, draftFromPlan, draftReminder, matchCase, readReply, sendDraft } from "./communication.ts";
 import { applyFinding, investigate } from "./investigation.ts";
 import { plan, timersFor, type PlanContext } from "./planning.ts";
-import { priorityOf } from "./priority.ts";
+import { priorityOf, timerFactor } from "./priority.ts";
+import { broadcast } from "../routes/events.ts";
 import { procedureFor } from "./sources.ts";
 import { attachmentBelongs, reviewFinding, verifyResolution } from "./verification.ts";
 import { config } from "../config.ts";
@@ -101,7 +102,7 @@ export function investigateShipment(awb: string, owner: string, trigger: string)
         return caseId;
       }),
     ),
-  );
+  ).then((id) => afterRun(id, id));
 }
 
 // ----------------------------------------------------------------- drafts
@@ -119,6 +120,9 @@ export function approveDraft(draftId: string, user: DemoUser, edits?: { subject?
       await updateDraft(draftId, { status: "sent", messageId: mail.message_id }, "communication");
       record("tool", `Sent ${draft.purpose} to ${draft.to}${approved.language ? ` in ${approved.language}` : ""} after approval by ${user.name}`, { messageId: mail.message_id });
 
+      // A Critical notice only informs the manager: the case's own status and timers carry on.
+      if (draft.purpose === "notify") return;
+
       const sentAt = mail.sent_at;
       const proc = await procedureFor(c.problemType);
       if (draft.purpose === "escalation") {
@@ -128,21 +132,26 @@ export function approveDraft(draftId: string, user: DemoUser, edits?: { subject?
       }
       if (draft.purpose === "reminder") {
         const n = c.reminders + 1;
-        const t = timersFor(proc, c.requestSentAt ?? sentAt);
+        const t = timersFor(proc, c.requestSentAt ?? sentAt, c.timerFactor ?? 1);
         await setFacts(draft.caseId, { reminders: n, nextReminderAt: n >= config.limits.reminders ? null : t.secondReminderAt }, "coordinator");
       } else {
-        // A new request or follow-up restarts the timers from the moment it is actually sent.
-        const t = timersFor(proc, sentAt);
+        // A new request or follow-up restarts the timers from the moment it is actually sent,
+        // shortened for High and Critical priority cases.
+        const p = priorityOf(caseFacts(draft.caseId)!);
+        const factor = timerFactor(p.level);
+        const t = timersFor(proc, sentAt, factor);
+        if (factor < 1) record("decision", `${p.level} priority: reminder and escalation timers run at ${factor * 100}% of the procedure times`);
         await setFacts(draft.caseId, {
           requestSentAt: c.requestSentAt ?? sentAt,
           nextReminderAt: t.firstReminderAt,
           escalateAt: t.escalateAt,
           reminders: 0,
+          timerFactor: factor,
         }, "coordinator");
       }
       await setStatus(draft.caseId, c.stage === "departed" ? "AWAITING_ARRIVAL" : "WAITING_REPLY", "coordinator");
     }),
-  );
+  ).then((r) => afterRun(draft.caseId, r));
 }
 
 export function rejectDraft(draftId: string, user: DemoUser, note: string) {
@@ -153,7 +162,7 @@ export function rejectDraft(draftId: string, user: DemoUser, note: string) {
       pausedOk(draft.caseId, async () => {
         await updateDraft(draftId, { status: "rejected", decidedBy: user.name, decidedAt: clock.now().toISOString() }, `user:${user.id}`);
         record("decision", `${user.name} rejected ${draftId}: ${note || "no reason given"}`);
-        if (draft.purpose === "reminder" || draft.purpose === "escalation") return;
+        if (draft.purpose === "reminder" || draft.purpose === "escalation" || draft.purpose === "notify") return;
         await planNext(draft.caseId, { reason: "person_feedback", detail: `A person rejected the previous draft${note ? ` and said: "${note}"` : ""}. Follow their instruction.` });
       }),
     ),
@@ -229,7 +238,8 @@ export async function receiveEmail(mail: MailRow): Promise<unknown> {
           return;
         }
         if (v.result === "stage") {
-          await setFacts(caseId, { stage: "departed", nextReminderAt: addHours(clock.now().toISOString(), 3), escalateAt: addHours(clock.now().toISOString(), 6) }, "coordinator");
+          const factor = c.timerFactor ?? 1;
+          await setFacts(caseId, { stage: "departed", nextReminderAt: addHours(clock.now().toISOString(), 3 * factor), escalateAt: addHours(clock.now().toISOString(), 6 * factor) }, "coordinator");
           await setStatus(caseId, "AWAITING_ARRIVAL", "coordinator");
           return;
         }
@@ -240,7 +250,7 @@ export async function receiveEmail(mail: MailRow): Promise<unknown> {
         await planNext(caseId, { reason: "sent_back", detail: `Verification rejected closing: ${failed}`, fromRole: reading.senderRole ?? undefined });
       }),
     ),
-  );
+  ).then((r) => afterRun(caseId, r));
 }
 
 // ---------------------------------------------------------------- closure
@@ -287,6 +297,51 @@ export function reinvestigate(caseId: string, user: DemoUser) {
   return investigateShipment(c.awbNo, c.owner || user.name, `${user.name} asked for a fresh investigation`);
 }
 
+// -------------------------------------------------------- critical priority
+
+/**
+ * When a case becomes Critical: flag it, pull its timers in (remaining time
+ * halved, never later), draft a notice for the manager to approve and alert
+ * the dashboard. Once per Critical spell; dropping below Critical re-arms it.
+ */
+export async function checkCritical(caseId: string): Promise<void> {
+  const f = caseFacts(caseId);
+  if (!f || !OPEN_STATUSES.includes(f.status)) return;
+  const p = priorityOf(f);
+  if (p.level !== "Critical") {
+    if (f.criticalAlertedAt) await setFacts(caseId, { criticalAlertedAt: null }, "coordinator");
+    return;
+  }
+  if (f.criticalAlertedAt) return;
+  await serial(`case:${caseId}`, () => withRun(`critical ${caseId}`, caseId, async () => {
+    const c = caseFacts(caseId)!;
+    if (c.criticalAlertedAt) return;
+    const now = clock.now();
+    const reasons = p.reasons.slice(0, 4);
+    record("decision", `${caseId} rose to Critical priority (score ${p.score}): ${reasons.join("; ")}`);
+    const sooner = (iso: string | null) => (iso && new Date(iso) > now ? new Date(now.getTime() + (new Date(iso).getTime() - now.getTime()) / 2).toISOString() : iso);
+    const waiting = ["WAITING_REPLY", "AWAITING_ARRIVAL", "WAITING_ON_ISSUER"].includes(c.status) && (c.timerFactor ?? 1) > 0.5;
+    await setFacts(caseId, {
+      criticalAlertedAt: now.toISOString(),
+      criticalReasons: reasons,
+      ...(waiting ? { nextReminderAt: sooner(c.nextReminderAt), escalateAt: sooner(c.escalateAt), timerFactor: 0.5 } : {}),
+    }, "coordinator");
+    if (waiting) record("decision", "Remaining reminder and escalation time halved for a Critical case");
+    await addFlag(caseId, `Priority rose to Critical: ${reasons[0] ?? ""}`, "coordinator");
+    if (!listDrafts(caseId).some((d) => d.status === "pending" && d.purpose === "notify")) {
+      const notice = await asAgent("communication", () => draftCriticalNotice(caseId, reasons));
+      record("decision", `Drafted a Critical notice to the operations manager for approval (${notice.id})`);
+    }
+    broadcast("alert", { caseId, awbNo: c.awbNo, title: c.title, level: p.level, reasons, at: now.toISOString() });
+  }));
+}
+
+/** Re-checks priority once a case run has finished (never fails the run itself). */
+function afterRun<T>(caseId: string | null | undefined, result: T): T {
+  if (caseId) checkCritical(caseId).catch((err) => console.error(`critical check ${caseId}:`, err));
+  return result;
+}
+
 // ------------------------------------------------------------------ timers
 
 export async function tick(): Promise<void> {
@@ -294,12 +349,14 @@ export async function tick(): Promise<void> {
   for (const caseId of listCaseIds()) {
     const c = caseFacts(caseId);
     if (!c || !OPEN_STATUSES.includes(c.status)) continue;
+    await checkCritical(caseId);
     const pending = listDrafts(caseId).filter((d) => d.status === "pending");
     // Drafts waiting more than 1 hour for approval (Team Demo Rule).
     for (const d of pending) {
       if (addHours(d.createdAt, 1) <= now) await addFlag(caseId, `Waiting for approval: ${d.id}`, "coordinator");
     }
-    if (pending.length) continue;
+    // A Critical notice waiting for the manager must not hold up the case's own timers.
+    if (pending.some((d) => d.purpose !== "notify")) continue;
     if (c.status === "ESCALATED" && c.escalateAt && c.escalateAt <= now) {
       await serial(`case:${caseId}`, () => withRun(`timer ${caseId}`, caseId, async () => {
         record("decision", "No response from the operations manager within 4 hours: case marked Stalled; nothing more is sent automatically");

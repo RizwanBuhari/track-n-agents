@@ -84,7 +84,7 @@ export default function DraftCard({ draft, showCase, onDone }) {
   return (
     <div className="draft-card">
       <div className="draft-head">
-        <span className={`badge tone-${draft.purpose === 'escalation' ? 'alert' : draft.purpose === 'reminder' ? 'neutral' : 'warn'}`}>{draft.purpose.replace('_', '-')}</span>
+        <span className={`badge tone-${draft.purpose === 'escalation' || draft.purpose === 'notify' ? 'alert' : draft.purpose === 'reminder' ? 'neutral' : 'warn'}`}>{draft.purpose === 'notify' ? 'critical notice' : draft.purpose.replace('_', '-')}</span>
         {showCase && draft.priority && <Priority p={draft.priority} compact />}
         <span className="draft-to">To <strong>{draft.to}</strong>{draft.cc && <> · cc {draft.cc}</>}</span>
         {translated && <span className="badge tone-info">Translated · {translated}</span>}

@@ -5,6 +5,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { api, currentUserId, setCurrentUserId, useEvents, useLive } from '../api'
 import { AGENT, when } from '../utils/format'
 import ChatPanel from './ChatPanel'
+import AlertToasts from './AlertToasts'
 import ErrorToasts from './ErrorToasts'
 import { Icon } from './icons'
 import Logo from './Logo'
@@ -132,6 +133,7 @@ export default function AppLayout() {
 
       <ChatPanel />
       <ErrorToasts />
+      <AlertToasts />
     </div>
   )
 }

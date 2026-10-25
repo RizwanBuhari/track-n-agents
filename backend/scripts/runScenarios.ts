@@ -65,7 +65,8 @@ async function start(awb: string, type: string) {
 
 async function approve(id: string) {
   const c = await get(`/cases/${id}`);
-  const d = c.drafts.filter((x: { status: string }) => x.status === "pending").at(-1);
+  // Critical notices to the manager are informational; the scenarios approve the case's own email.
+  const d = c.drafts.filter((x: { status: string; purpose: string }) => x.status === "pending" && x.purpose !== "notify").at(-1);
   if (!d) return expect("pending draft to approve", false, "none");
   await post(`/drafts/${d.id}/approve`);
 }
@@ -163,7 +164,7 @@ scenario = "Wrong HS code";
   await approve(id);
   c = await reply(id, "injection");
   expect("hidden instructions are flagged, not followed", c.flags.some((f: string) => f.startsWith("Instructions hidden")) && c.status !== "RESOLVED" && c.status !== "READY_TO_CLOSE", `${c.status}`);
-  if (c.drafts.some((d: { status: string }) => d.status === "pending")) await approve(id);
+  if (c.drafts.some((d: { status: string; purpose: string }) => d.status === "pending" && d.purpose !== "notify")) await approve(id);
   c = await reply(id, "resolved");
   expect("broker review + corrected invoice + release passes", c.status === "READY_TO_CLOSE", `${c.status}, ${lastCheck(c)?.checks.filter((k) => !k.passed).map((k) => k.name).join("; ") || "all checks passed"}`);
 }
